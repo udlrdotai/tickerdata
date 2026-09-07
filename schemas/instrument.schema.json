@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://tickerdata.local/schemas/instrument",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "symbol", "name", "security_type", "issuer", "listing_status", "industry", "classification", "etf", "related_instrument_ids", "notes", "sources", "review"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "id": { "type": "string", "pattern": "^ins-[a-z0-9]+(?:-[a-z0-9]+)*$", "maxLength": 100 },
+    "symbol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["original", "canonical", "mic", "aliases", "history"],
+      "properties": {
+        "original": { "$ref": "common#/definitions/symbol" },
+        "canonical": { "$ref": "common#/definitions/symbol" },
+        "mic": { "$ref": "common#/definitions/mic" },
+        "aliases": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["provider", "symbol"],
+            "properties": {
+              "provider": { "$ref": "common#/definitions/id" },
+              "symbol": { "$ref": "common#/definitions/symbol" }
+            }
+          }
+        },
+        "history": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["symbol", "mic", "valid_from", "valid_to"],
+            "properties": {
+              "symbol": { "$ref": "common#/definitions/symbol" },
+              "mic": { "$ref": "common#/definitions/mic" },
+              "valid_from": { "$ref": "common#/definitions/nullableDate" },
+              "valid_to": { "$ref": "common#/definitions/nullableDate" }
+            }
+          }
+        }
+      }
+    },
+    "name": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["en", "zh"],
+      "properties": {
+        "en": { "$ref": "common#/definitions/nullableText" },
+        "zh": { "$ref": "common#/definitions/nullableText" }
+      }
+    },
+    "security_type": { "enum": ["stock", "etf", "other"] },
+    "issuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "country"],
+      "properties": {
+        "id": { "$ref": "common#/definitions/nullableId" },
+        "country": { "type": ["string", "null"], "pattern": "^[A-Z]{2}$" }
+      }
+    },
+    "listing_status": { "enum": ["active", "inactive", "unknown"] },
+    "industry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system_id", "sector_id", "industry_id", "source_ids"],
+      "properties": {
+        "system_id": { "$ref": "common#/definitions/nullableId" },
+        "sector_id": { "$ref": "common#/definitions/nullableId" },
+        "industry_id": { "$ref": "common#/definitions/nullableId" },
+        "source_ids": { "$ref": "common#/definitions/ids" }
+      }
+    },
+    "classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary_theme_id", "tag_ids", "source_ids"],
+      "properties": {
+        "primary_theme_id": { "$ref": "common#/definitions/nullableId" },
+        "tag_ids": { "$ref": "common#/definitions/ids" },
+        "source_ids": { "$ref": "common#/definitions/ids" }
+      }
+    },
+    "etf": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["objective", "asset_class", "exposure", "leverage_factor", "direction", "reset_period", "fund_category", "description", "source_ids"],
+          "properties": {
+            "objective": { "$ref": "common#/definitions/nullableText" },
+            "asset_class": { "enum": ["equity", "fixed_income", "commodity", "digital_asset", "multi_asset", "other", null] },
+            "exposure": { "type": "array", "items": { "type": "string", "minLength": 1, "pattern": "\\S" }, "uniqueItems": true },
+            "leverage_factor": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+            "direction": { "enum": ["long", "short", "neutral", null] },
+            "reset_period": { "enum": ["daily", "monthly", "none", "other", null] },
+            "fund_category": { "$ref": "common#/definitions/nullableText" },
+            "description": { "$ref": "common#/definitions/nullableText" },
+            "source_ids": { "$ref": "common#/definitions/ids" }
+          }
+        }
+      ]
+    },
+    "related_instrument_ids": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^ins-[a-z0-9]+(?:-[a-z0-9]+)*$" },
+      "uniqueItems": true
+    },
+    "notes": { "type": "string" },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "label", "url", "accessed_at", "fields"],
+        "properties": {
+          "id": { "$ref": "common#/definitions/id" },
+          "kind": { "enum": ["manual", "issuer", "exchange", "provider", "other"] },
+          "label": { "type": "string", "minLength": 1 },
+          "url": { "anyOf": [{ "type": "string", "format": "uri", "pattern": "^https?://\\S+$" }, { "type": "null" }] },
+          "accessed_at": { "$ref": "common#/definitions/nullableTime" },
+          "fields": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "enum": ["/industry", "/classification", "/etf", "/name", "/symbol", "/issuer", "/listing_status", "/notes"] }
+          }
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reviewed_at", "reviewer"],
+      "properties": {
+        "status": { "enum": ["pending", "reviewed", "needs_review"] },
+        "reviewed_at": { "$ref": "common#/definitions/nullableTime" },
+        "reviewer": { "$ref": "common#/definitions/nullableText" }
+      }
+    }
+  }
+}

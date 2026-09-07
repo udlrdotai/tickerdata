@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://tickerdata.local/schemas/suggestion",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "instrument_id", "base_record_sha256", "generated_at", "generator", "facts", "inferences", "missing", "proposed", "new_theme_proposals", "decisions"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "id": { "$ref": "common#/definitions/id" },
+    "instrument_id": { "type": "string", "pattern": "^ins-[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "base_record_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "generator": { "type": "string", "minLength": 1 },
+    "facts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text", "source_urls"],
+        "properties": {
+          "text": { "type": "string", "minLength": 1 },
+          "source_urls": { "type": "array", "items": { "type": "string", "format": "uri", "pattern": "^https?://" }, "uniqueItems": true }
+        }
+      }
+    },
+    "inferences": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "missing": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "proposed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field", "value", "reason"],
+        "properties": {
+          "field": { "enum": ["/classification/primary_theme_id", "/classification/tag_ids"] },
+          "value": {
+            "anyOf": [
+              { "$ref": "common#/definitions/nullableId" },
+              { "$ref": "common#/definitions/ids" }
+            ]
+          },
+          "reason": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "new_theme_proposals": { "type": "array", "items": { "$ref": "common#/definitions/label" } },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["proposal_index", "decision", "reviewer", "decided_at", "note"],
+        "properties": {
+          "proposal_index": { "type": "integer", "minimum": 0 },
+          "decision": { "enum": ["accepted", "rejected"] },
+          "reviewer": { "type": "string", "minLength": 1 },
+          "decided_at": { "type": "string", "format": "date-time" },
+          "note": { "type": "string" }
+        }
+      }
+    }
+  }
+}

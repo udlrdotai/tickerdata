@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0.0",
+  "industry_systems": [
+    {
+      "id": "yahoo",
+      "name_zh": "Yahoo Finance 行业标签",
+      "description": "仅记录供应商原分类，不宣称等同于 GICS/ICB。引用时需记录实际来源与获取日期。",
+      "aliases": ["Yahoo"],
+      "sectors": [
+        { "id": "technology", "name_zh": "信息技术", "description": "对应供应商 Technology 标签。", "aliases": ["Technology"] }
+      ],
+      "industries": [
+        { "id": "semiconductors", "name_zh": "半导体", "description": "对应供应商 Semiconductors 标签。", "aliases": ["Semiconductors"], "sector_id": "technology" },
+        { "id": "software-infrastructure", "name_zh": "基础设施软件", "description": "对应供应商 Software - Infrastructure 标签。", "aliases": ["Software - Infrastructure"], "sector_id": "technology" }
+      ]
+    }
+  ],
+  "themes": [
+    { "id": "semiconductor-ai", "name_zh": "半导体/AI", "description": "主线为 AI 加速计算相关半导体；作为互斥主分组使用。", "aliases": ["AI芯片"] },
+    { "id": "ai-cloud", "name_zh": "AI云/算力", "description": "提供 AI 计算基础设施或云算力服务。", "aliases": ["AI云算力", "AI算力"] },
+    { "id": "bitcoin-treasury", "name_zh": "比特币资产", "description": "交易叙事侧重企业持有的比特币资产，不替代其标准行业。", "aliases": ["比特币财库"] },
+    { "id": "semiconductor-foundry", "name_zh": "半导体/代工", "description": "晶圆代工主线。", "aliases": ["晶圆代工"] },
+    { "id": "satellite-communication", "name_zh": "卫星通信", "description": "卫星网络与通信服务主线。", "aliases": [] },
+    { "id": "us-large-cap", "name_zh": "美国大盘股", "description": "美国大盘股票指数敞口，不等同于某个公司行业。", "aliases": ["美股大盘"] },
+    { "id": "nasdaq-100", "name_zh": "纳指100", "description": "纳斯达克100指数敞口，不直接归类为科技公司。", "aliases": ["纳斯达克100"] },
+    { "id": "semiconductor-sector", "name_zh": "半导体板块", "description": "半导体板块整体敞口。杠杆另记 ETF 属性。", "aliases": [] },
+    { "id": "china-internet", "name_zh": "中概互联网", "description": "中国互联网相关证券敞口，与上市市场分开表达。", "aliases": [] },
+    { "id": "gold", "name_zh": "黄金", "description": "黄金资产敞口。", "aliases": [] },
+    { "id": "us-long-treasury", "name_zh": "长期美国国债", "description": "长期限美国国债敞口。", "aliases": ["美债长久期"] },
+    { "id": "bitcoin", "name_zh": "比特币", "description": "比特币资产直接或基金敞口；区别于企业财库交易主题。", "aliases": ["BTC"] }
+  ],
+  "tags": [
+    { "id": "ai", "name_zh": "人工智能", "description": "辅助检索标签，不参与互斥主主题分组。", "aliases": ["AI"] },
+    { "id": "leveraged", "name_zh": "杠杆产品", "description": "仅辅助筛选，具体倍数、方向与重置周期以 ETF 字段为准。", "aliases": [] },
+    { "id": "digital-assets", "name_zh": "数字资产相关", "description": "数字资产相关的跨主题辅助标签。", "aliases": [] }
+  ]
+}

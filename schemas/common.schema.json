@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://tickerdata.local/schemas/common",
+  "definitions": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", "maxLength": 100 },
+    "nullableText": { "type": ["string", "null"], "minLength": 1, "pattern": "\\S" },
+    "nullableId": { "anyOf": [{ "$ref": "#/definitions/id" }, { "type": "null" }] },
+    "nullableTime": { "anyOf": [{ "type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?Z$" }, { "type": "null" }] },
+    "nullableDate": { "anyOf": [{ "type": "string", "format": "date" }, { "type": "null" }] },
+    "mic": { "type": ["string", "null"], "pattern": "^[A-Z0-9]{4}$" },
+    "symbol": { "type": "string", "minLength": 1, "maxLength": 80, "pattern": "^\\S+$" },
+    "ids": { "type": "array", "items": { "$ref": "#/definitions/id" }, "uniqueItems": true },
+    "label": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name_zh", "description", "aliases"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "name_zh": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "aliases": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+      }
+    }
+  }
+}

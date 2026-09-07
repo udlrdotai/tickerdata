@@ -1,0 +1,142 @@
+import { stableStringify } from '../src/model.js';
+import { validateDatasetShape } from '../src/validation.js';
+
+export const clone = (value) => JSON.parse(JSON.stringify(value));
+const same = (a, b) => stableStringify(a) === stableStringify(b);
+
+export function matchesRecord(record, filters) {
+  const haystack = [
+    record.id, record.symbol.original, record.symbol.canonical, record.symbol.mic,
+    record.name.en, record.name.zh,
+    ...record.symbol.aliases.flatMap((item) => [item.provider, item.symbol]),
+    ...record.symbol.history.flatMap((item) => [item.symbol, item.mic]),
+  ].filter(Boolean).join(' ').toLocaleLowerCase();
+  return haystack.includes((filters.query ?? '').trim().toLocaleLowerCase()) &&
+    (!filters.type || record.security_type === filters.type) &&
+    (!filters.theme || (filters.theme === '__none' ? !record.classification.primary_theme_id : record.classification.primary_theme_id === filters.theme)) &&
+    (!filters.tag || record.classification.tag_ids.includes(filters.tag)) &&
+    (!filters.review || record.review.status === filters.review);
+}
+
+export function prepareRecord(previous, next, explicitlyReviewed = false) {
+  const record = clone(next);
+  if (previous && previous.id !== record.id) throw new Error('内部 ID 不可更改；证券代码变更请保留 ID 并维护历史代码。');
+  if (previous?.review.status === 'reviewed' && !same(previous, record) && !explicitlyReviewed) {
+    record.review.status = 'needs_review';
+  }
+  if (record.review.status === 'reviewed' && (!previous || previous.review.status !== 'reviewed') && !explicitlyReviewed) {
+    record.review.status = 'needs_review';
+  }
+  if (explicitlyReviewed) {
+    const now = Date.now();
+    const previousTimestamp = previous?.review.reviewed_at;
+    if (previousTimestamp !== null && previousTimestamp !== undefined) {
+      const previousTime = Date.parse(previousTimestamp);
+      if (!Number.isFinite(previousTime) || previousTime >= now) {
+        throw new Error('无法重新审核：原审核时间无效，或不早于当前 UTC 时间。请先标为需复核；修正源数据中的审核时间并重新加载，或等待真实时间晚于原时间后再审核。不会自动生成未来审核时间。');
+      }
+    }
+    record.review.status = 'reviewed';
+    record.review.reviewed_at = new Date(now).toISOString();
+  }
+  return record;
+}
+
+export function references(dataset, kind, id) {
+  return dataset.instruments.filter((record) => kind === 'themes'
+    ? record.classification.primary_theme_id === id
+    : kind === 'tags' ? record.classification.tag_ids.includes(id) : record.industry.system_id === id);
+}
+
+export function downgradeRelatedReviews(dataset) {
+  const byId = new Map(dataset.instruments.map((record) => [record.id, record]));
+  let changed;
+  do {
+    changed = false;
+    for (const record of dataset.instruments) {
+      if (record.review.status === 'reviewed' &&
+          record.related_instrument_ids.some((id) => byId.get(id)?.review.status !== 'reviewed')) {
+        record.review.status = 'needs_review';
+        changed = true;
+      }
+    }
+  } while (changed);
+  return dataset;
+}
+
+export function applyVocabulary(dataset, vocabulary) {
+  const next = clone(dataset);
+  next.vocabulary = clone(vocabulary);
+  return markVocabularyChanges(dataset, next);
+}
+
+function markVocabularyChanges(dataset, next) {
+  const vocabulary = next.vocabulary;
+  for (const kind of ['themes', 'tags', 'industry_systems']) {
+    for (const before of dataset.vocabulary[kind]) {
+      const after = vocabulary[kind].find((item) => item.id === before.id);
+      const affected = references(next, kind, before.id);
+      if (!after && affected.length) throw new Error(`不能删除被引用的 ${before.id}（${affected.length} 条）；请先合并或移除引用。`);
+      if (after && !same(before, after)) {
+        for (const record of affected) record.review.status = 'needs_review';
+      }
+    }
+  }
+  return downgradeRelatedReviews(next);
+}
+
+export function prepareImportedDataset(current, candidate) {
+  const errors = validateDatasetShape(candidate);
+  if (errors.length) throw new Error(`导入结构无效：\n${errors.join('\n')}`);
+  const next = clone(candidate);
+  next.instruments = next.instruments.map((record) =>
+    prepareRecord(current.instruments.find((item) => item.id === record.id), record));
+  return markVocabularyChanges(current, next);
+}
+
+export function mergeVocabulary(dataset, kind, fromId, toId) {
+  if (!['themes', 'tags'].includes(kind)) throw new Error('只支持主题和标签的 ID 合并。');
+  const next = clone(dataset);
+  const labels = next.vocabulary[kind];
+  const from = labels.find((item) => item.id === fromId);
+  const to = labels.find((item) => item.id === toId);
+  if (!from || !to || fromId === toId) throw new Error('请选择两个不同且存在的词条。');
+  const names = new Set([to.name_zh, ...to.aliases].map((name) => name.trim().toLocaleLowerCase()));
+  for (const name of [from.name_zh, ...from.aliases]) {
+    const key = name.trim().toLocaleLowerCase();
+    if (!names.has(key)) { to.aliases.push(name); names.add(key); }
+  }
+  for (const record of references(next, kind, fromId)) {
+    if (kind === 'themes') record.classification.primary_theme_id = toId;
+    else record.classification.tag_ids = [...new Set(record.classification.tag_ids.map((id) => id === fromId ? toId : id))];
+    record.review.status = 'needs_review';
+  }
+  // The surviving label's meaning/aliases also changed.
+  for (const record of references(next, kind, toId)) record.review.status = 'needs_review';
+  next.vocabulary[kind] = labels.filter((item) => item.id !== fromId);
+  return downgradeRelatedReviews(next);
+}
+
+export function changedFiles(initial, current) {
+  const files = [];
+  if (!same(initial.vocabulary, current.vocabulary)) files.push({ path: 'data/vocabulary.json', content: clone(current.vocabulary) });
+  for (const record of current.instruments) {
+    const before = initial.instruments.find((item) => item.id === record.id);
+    if (!before || !same(before, record)) files.push({ path: `data/instruments/${record.id}.json`, content: clone(record) });
+  }
+  return files;
+}
+
+export function githubLinks(config, path, exists = true) {
+  if (!config || typeof config.repository_url !== 'string' ||
+      !/^https:\/\/github\.com\/[A-Za-z0-9-]+\/[A-Za-z0-9_.-]+\/?$/.test(config.repository_url) ||
+      typeof config.branch !== 'string' || !config.branch.trim()) return [];
+  const root = config.repository_url.replace(/\/$/, '');
+  const branch = encodeURIComponent(config.branch);
+  const encodedPath = path.split('/').map(encodeURIComponent).join('/');
+  return exists ? [
+    ['源文件', `${root}/blob/${branch}/${encodedPath}`],
+    ['在 GitHub 编辑', `${root}/edit/${branch}/${encodedPath}`],
+    ['提交历史', `${root}/commits/${branch}/${encodedPath}`],
+  ] : [['在 GitHub 新建文件', `${root}/new/${branch}?filename=${encodeURIComponent(path)}`]];
+}

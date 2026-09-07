@@ -1,0 +1,69 @@
+{
+  "classification": {
+    "primary_theme_id": "bitcoin",
+    "source_ids": [
+      "manual-example"
+    ],
+    "tag_ids": [
+      "digital-assets"
+    ]
+  },
+  "etf": {
+    "asset_class": null,
+    "description": null,
+    "direction": null,
+    "exposure": [],
+    "fund_category": null,
+    "leverage_factor": null,
+    "objective": "比特币 ETF",
+    "reset_period": null,
+    "source_ids": [
+      "manual-example"
+    ]
+  },
+  "id": "ins-000017",
+  "industry": {
+    "industry_id": null,
+    "sector_id": null,
+    "source_ids": [],
+    "system_id": null
+  },
+  "issuer": {
+    "country": null,
+    "id": null
+  },
+  "listing_status": "unknown",
+  "name": {
+    "en": null,
+    "zh": null
+  },
+  "notes": "初始化占位样例；仅采用用户提供的示例语义，未经独立核实。名称、MIC、上市状态及未核实属性留空或 unknown。请逐项核实后再填写审核人和时间；不可直接作为已审核事实。内部 ID 是本项目分配的标识，不是官方证券代码。",
+  "related_instrument_ids": [],
+  "review": {
+    "reviewed_at": null,
+    "reviewer": null,
+    "status": "pending"
+  },
+  "schema_version": "1.0.0",
+  "security_type": "etf",
+  "sources": [
+    {
+      "accessed_at": null,
+      "fields": [
+        "/classification",
+        "/etf"
+      ],
+      "id": "manual-example",
+      "kind": "manual",
+      "label": "用户需求中的分类语义示例；仅为待审核起点，不是发行人或交易所证据。",
+      "url": null
+    }
+  ],
+  "symbol": {
+    "aliases": [],
+    "canonical": "IBIT",
+    "history": [],
+    "mic": null,
+    "original": "IBIT"
+  }
+}

@@ -1,0 +1,48 @@
+name: Validate and build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run validate
+      - name: Protect review transitions and historical IDs
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BASE: ${{ github.event.before }}
+        run: |
+          base="${PR_BASE:-$PUSH_BASE}"
+          if [ -n "$base" ] && [ "$base" != "0000000000000000000000000000000000000000" ]; then
+            npm run validate -- --base-ref "$base"
+          fi
+      - run: npm test
+      - run: python3 -m unittest discover -s tests -p 'test_*.py'
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:web
+      - name: Preserve this exact commit's reproducible output
+        uses: actions/upload-artifact@v4
+        with:
+          name: tickerdata-${{ github.sha }}
+          path: dist/
+          retention-days: 30

@@ -1,0 +1,31 @@
+{
+  "name": "tickerdata",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prevalidate": "node scripts/compile-schemas.js",
+    "validate": "node scripts/cli.js validate",
+    "prebuild": "node scripts/compile-schemas.js",
+    "build": "node scripts/cli.js build",
+    "pretest": "node scripts/compile-schemas.js",
+    "test": "node --test tests/*.test.js",
+    "test:web": "npm run build && node --test tests-browser/*.test.js",
+    "serve": "python3 -m http.server 8080 --bind 127.0.0.1 --directory dist",
+    "presuggestion:validate": "node scripts/compile-schemas.js",
+    "suggestion:validate": "node scripts/cli.js suggestion",
+    "preimport": "node scripts/compile-schemas.js",
+    "import": "node scripts/import.js"
+  },
+  "dependencies": {
+    "ajv": "8.17.1",
+    "ajv-formats": "3.0.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.9",
+    "playwright": "1.63.0"
+  }
+}
