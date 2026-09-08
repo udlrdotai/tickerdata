@@ -15,7 +15,7 @@ export function datasetHash(dataset) {
 export function prepareImport(current, payload) {
   let candidate;
   if (payload && Array.isArray(payload.instruments) && payload.vocabulary) candidate = structuredClone(payload);
-  else if (payload && Array.isArray(payload.themes) && Array.isArray(payload.industry_systems)) candidate = { ...structuredClone(current), vocabulary: structuredClone(payload) };
+  else if (payload && Array.isArray(payload.tags) && Array.isArray(payload.industry_systems)) candidate = { ...structuredClone(current), vocabulary: structuredClone(payload) };
   else if (payload && typeof payload.id === 'string') {
     candidate = structuredClone(current);
     const index = candidate.instruments.findIndex((record) => record.id === payload.id);

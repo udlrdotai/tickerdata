@@ -101,6 +101,85 @@ test('search/filter works at desktop and narrow mobile widths without an externa
   assert.equal(await page.evaluate(() => localStorage.length), 0);
 });
 
+test('only tags and industry remain in the UI and multi-select tags save, export and reimport', async (t) => {
+  const source = createDatasetFixture();
+  source.instruments[0].sources.find((item) => item.id === 'manual-example').label = 'Synthetic historical 主主题 evidence, preserved verbatim.';
+  const page = await pageForTest(t, {}, source);
+  assert.equal(await page.getByLabel('主主题', { exact: true }).count(), 0);
+  assert.equal(await page.locator('.badge').filter({ hasText: '未分类' }).count(), 0);
+  await page.getByLabel('标签', { exact: true }).selectOption('ai');
+  assert.equal(await page.locator('aside .record-button').count(), 2);
+  await page.getByLabel('标签', { exact: true }).selectOption('');
+  await page.getByRole('button', { name: /^NVDA ·/ }).click();
+  assert.equal(await page.getByLabel('主主题（单选）', { exact: true }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: '主题 / 标签 / 行业词表', exact: true }).count(), 0);
+  assert.doesNotMatch((await page.locator('form legend').allTextContents()).join('\n'), /主主题|交易主题|与主题独立/);
+  assert.match(await page.getByLabel('来源证据（JSON 数组）', { exact: true }).inputValue(), /historical 主主题 evidence/);
+  const selection = ['ai', 'semiconductor-ai', 'digital-assets'];
+  await page.getByLabel('标签（多选）', { exact: true }).selectOption(selection);
+  assert.match(await page.locator('#form-state').textContent(), /未保存修改/);
+  await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
+  const exported = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
+  assert.equal(exported.schema_version, '3.0.0');
+  assert.deepEqual([...exported.classification.tag_ids].sort(), selection.sort());
+  assert.deepEqual(Object.keys(exported.classification).sort(), ['source_ids', 'tag_ids']);
+  assert.deepEqual(exported.industry, initial.instruments[0].industry);
+  assert.deepEqual(exported.sources, source.instruments[0].sources);
+  await page.reload();
+  await page.locator('input[type=file]').setInputFiles({
+    name: `${exported.id}.json`, mimeType: 'application/json', buffer: Buffer.from(stableStringify(exported)),
+  });
+  await page.getByText('导入内容已通过全数据集校验。', { exact: false }).waitFor();
+  assert.deepEqual(await page.getByLabel('标签（多选）', { exact: true }).evaluate((select) =>
+    [...select.selectedOptions].map((option) => option.value).sort()), selection);
+  assert.deepEqual(await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true })), exported);
+  await page.getByRole('button', { name: '标签 / 行业词表', exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: '主主题', exact: true }).count(), 0);
+  assert.equal(await page.getByRole('heading', { name: '主题、标签与标准行业词表', exact: true }).count(), 0);
+  await page.getByRole('button', { name: '行业体系', exact: true }).click();
+  await page.locator('aside .record-button').first().click();
+  assert.equal(await page.getByLabel('将当前词条并入', { exact: true }).count(), 0);
+});
+
+test('reviewers can explicitly approve records without tags or classification evidence', async (t) => {
+  const page = await pageForTest(t);
+  await page.getByRole('button', { name: /^TSLA ·/ }).click();
+  const original = initial.instruments.find((record) => record.symbol.canonical === 'TSLA');
+  assert.deepEqual(original.classification, { tag_ids: [], source_ids: [] });
+  await page.getByLabel('MIC 交易场所代码', { exact: true }).fill('XNAS');
+  await page.getByLabel('审核人', { exact: true }).fill('Synthetic optional-tag reviewer');
+  await page.getByRole('checkbox').check();
+  await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
+  assert.match(await page.locator('#messages').textContent(), /已通过校验/);
+  const reviewed = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
+  assert.equal(reviewed.review.status, 'reviewed');
+  assert.equal(reviewed.review.reviewer, 'Synthetic optional-tag reviewer');
+  assert.ok(Number.isFinite(Date.parse(reviewed.review.reviewed_at)));
+  assert.deepEqual(reviewed.classification, original.classification);
+  assert.deepEqual(reviewed.industry, original.industry);
+  assert.deepEqual(reviewed.sources, original.sources);
+  assert.deepEqual(validateDataset({ ...initial, instruments: [reviewed] }), []);
+  assert.deepEqual(JSON.parse(createRelease({ ...initial, instruments: [reviewed] }).files['instruments.json']).instruments, [reviewed]);
+});
+
+test('v1 and v2 record, vocabulary and bundle imports fail with migration instructions without changing drafts', async (t) => {
+  const page = await pageForTest(t);
+  await page.getByRole('button', { name: /^NVDA ·/ }).click();
+  for (const version of ['1.0.0', '2.0.0']) {
+    for (const payload of [initial.instruments[0], initial.vocabulary, initial]) {
+      await page.getByRole('button', { name: /^NVDA ·/ }).click();
+      await page.locator('input[type=file]').setInputFiles({
+        name: 'legacy.json', mimeType: 'application/json',
+        buffer: Buffer.from(stableStringify({ ...payload, schema_version: version })),
+      });
+      await page.locator('#messages.error').waitFor();
+      assert.match(await page.locator('#messages').textContent(), /npm run migrate -- legacy.json/);
+      assert.equal(await page.getByLabel('英文名称', { exact: true }).inputValue(), initial.instruments[0].name.en);
+    }
+  }
+  assert.deepEqual(await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true })), initial.instruments[0]);
+});
+
 test('current built maintenance source loads and exports without assuming sample counts or review states', async (t) => {
   const source = JSON.parse(sourceSnapshot);
   const page = await pageForTest(t, {}, sourceSnapshot);
@@ -244,7 +323,10 @@ test('record edit, explicit human review, downgrade, safe text, validation and e
     'examples/consumer.py', 'NVDA', '--snapshot', snapshot, '--version', release.version,
   ], { encoding: 'utf8' }));
   assert.equal(consumed.instrument.id, approved.id);
-  assert.equal(consumed.primary_theme.id, approved.classification.primary_theme_id);
+  assert.deepEqual(consumed.tags.map((tag) => tag.id).sort(), [...approved.classification.tag_ids].sort());
+  assert.equal('primary_theme' in consumed, false);
+  assert.ok(release.files['vocabulary.json']);
+  assert.equal('themes.json' in release.files, false);
   await page.getByLabel('英文名称', { exact: true }).fill('Corrected fixture name');
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
   const edited = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
@@ -263,7 +345,7 @@ test('adding ETF uses separate attributes and keeps identity stable when type ch
   await page.getByRole('button', { name: '由原始代码填入规范代码', exact: true }).click();
   await page.locator('section[aria-label="编辑详情"]').getByLabel('证券类型', { exact: true }).selectOption('etf');
   assert.equal(await page.getByLabel('行业体系', { exact: true }).count(), 0);
-  await page.getByLabel('主主题（单选）', { exact: true }).selectOption('semiconductor-sector');
+  await page.getByLabel('标签（多选）', { exact: true }).selectOption(['semiconductor-sector', 'leveraged']);
   await page.getByLabel('分类来源 ID', { exact: true }).fill('human');
   await page.getByLabel('ETF 来源 ID', { exact: true }).fill('human');
   await page.getByLabel('来源证据（JSON 数组）', { exact: true }).fill(JSON.stringify([
@@ -329,7 +411,7 @@ test('three-level selection preserves initial values, cascades, backfills and ro
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
   assert.match(await page.locator('#messages').textContent(), /已通过校验/);
   const edited = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
-  assert.equal(edited.schema_version, '2.0.0');
+  assert.equal(edited.schema_version, '3.0.0');
   assert.equal(edited.industry.industry_id, software.id);
   assert.equal(edited.industry.industry_group_id, software.industry_group_id);
   assert.deepEqual(edited.classification, record.classification);
@@ -344,13 +426,13 @@ test('three-level selection preserves initial values, cascades, backfills and ro
   assert.equal(await groupControl.inputValue(), software.industry_group_id);
   assert.equal(await industryControl.inputValue(), software.id);
   const bundle = await downloadJson(page, page.getByRole('button', { name: '导出完整维护包（全部源记录及词表）', exact: true }));
-  assert.equal(bundle.schema_version, '2.0.0');
+  assert.equal(bundle.schema_version, '3.0.0');
   assert.deepEqual(bundle.vocabulary, initial.vocabulary);
   assert.deepEqual(bundle.instruments.find((item) => item.id === edited.id), edited);
   assert.deepEqual(validateDataset(bundle), []);
 });
 
-test('empty records remain unclassified, Yahoo needs no group and ETF clears all hierarchy fields', async (t) => {
+test('empty records allow no classification, Yahoo needs no group and ETF clears all hierarchy fields', async (t) => {
   const page = await pageForTest(t);
   await page.getByRole('button', { name: '＋ 新增证券', exact: true }).click();
   const systemControl = page.getByLabel('行业体系', { exact: true });
@@ -397,7 +479,7 @@ test('industry vocabulary is browsable in three levels and group edits flag revi
   await page.getByRole('checkbox').check();
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
   assert.match(await page.locator('#messages').textContent(), /已通过校验/);
-  await page.getByRole('button', { name: '主题 / 标签 / 行业词表', exact: true }).click();
+  await page.getByRole('button', { name: '标签 / 行业词表', exact: true }).click();
   await page.getByRole('button', { name: '行业体系', exact: true }).click();
   await page.locator('aside .record-button').filter({ hasText: 'financedatabase' }).click();
   assert.match(await page.locator('.industry-tree > summary').textContent(), /11 板块 \/ 24 行业组 \/ 69 行业/);
@@ -425,10 +507,16 @@ test('industry vocabulary is browsable in three levels and group edits flag revi
   assert.deepEqual(added.industries, []);
 });
 
-test('theme references block deletion and merged full bundle round-trips through browser import', async (t) => {
+test('tag rename and referenced deletion stay safe and merged bundles round-trip through browser import', async (t) => {
   const page = await pageForTest(t);
-  await page.getByRole('button', { name: '主题 / 标签 / 行业词表', exact: true }).click();
+  await page.getByRole('button', { name: '标签 / 行业词表', exact: true }).click();
   await page.locator('aside .record-button').filter({ hasText: 'semiconductor-ai' }).click();
+  await page.getByLabel('中文显示名称', { exact: true }).fill('合成测试标签');
+  await page.getByRole('button', { name: '校验并保存词条草稿', exact: true }).click();
+  const renamed = await downloadJson(page, page.getByRole('button', { name: '导出完整维护包（全部源记录及词表）', exact: true }));
+  assert.equal(renamed.vocabulary.tags.find((tag) => tag.id === 'semiconductor-ai').name_zh, '合成测试标签');
+  assert.deepEqual(renamed.instruments[0].classification, initial.instruments[0].classification);
+  assert.equal(renamed.instruments[0].review.status, 'needs_review');
   await page.getByRole('button', { name: '删除未被引用词条', exact: true }).click();
   assert.match(await page.locator('#messages').textContent(), /拒绝删除/);
   await page.getByLabel('将当前词条并入', { exact: true }).selectOption('ai-cloud');
@@ -436,8 +524,9 @@ test('theme references block deletion and merged full bundle round-trips through
   assert.match(await page.locator('#messages').textContent(), /已原子合并/);
   const bundle = await downloadJson(page, page.getByRole('button', { name: '导出完整维护包（全部源记录及词表）', exact: true }));
   assert.equal(bundle.instruments.length, 17);
-  assert.equal(bundle.vocabulary.themes.some((theme) => theme.id === 'semiconductor-ai'), false);
-  assert.equal(bundle.instruments.find((record) => record.id === 'ins-000001').classification.primary_theme_id, 'ai-cloud');
+  assert.equal(bundle.vocabulary.tags.some((tag) => tag.id === 'semiconductor-ai'), false);
+  assert.deepEqual(bundle.instruments.find((record) => record.id === 'ins-000001').classification.tag_ids, ['ai', 'ai-cloud']);
+  assert.ok(bundle.vocabulary.tags.find((tag) => tag.id === 'ai-cloud').aliases.includes('合成测试标签'));
   assert.equal(bundle.instruments.find((record) => record.id === 'ins-000002').review.status, 'needs_review');
   assert.deepEqual(validateDataset(bundle), []);
   const importedPage = await pageForTest(t);
@@ -447,6 +536,10 @@ test('theme references block deletion and merged full bundle round-trips through
   await importedPage.getByText('导入内容已通过全数据集校验。', { exact: false }).waitFor();
   const imported = await downloadJson(importedPage, importedPage.getByRole('button', { name: '导出完整维护包（全部源记录及词表）', exact: true }));
   assert.deepEqual(imported, bundle);
+  await page.locator('aside .record-button').filter({ hasText: 'satellite-communication' }).click();
+  await page.getByRole('button', { name: '删除未被引用词条', exact: true }).click();
+  const deleted = await downloadJson(page, page.getByRole('button', { name: '导出已保存词表 JSON', exact: true }));
+  assert.equal(deleted.tags.some((tag) => tag.id === 'satellite-communication'), false);
 });
 
 test('unsaved navigation cancellation retains edits and malformed import is visibly rejected', async (t) => {

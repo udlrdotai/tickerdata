@@ -21,7 +21,7 @@ NEXT_VERSION = "b" * 64
 
 def record(identifier="ins-example", symbol="TEST", mic="XNAS"):
     return {
-        "schema_version": "2.0.0", "id": identifier,
+        "schema_version": "3.0.0", "id": identifier,
         "symbol": {"original": symbol, "canonical": symbol, "mic": mic,
                    "aliases": [], "history": []},
         "name": {"en": "Example security", "zh": None},
@@ -29,9 +29,9 @@ def record(identifier="ins-example", symbol="TEST", mic="XNAS"):
         "listing_status": "active",
         "industry": {"system_id": None, "sector_id": None, "industry_group_id": None,
                      "industry_id": None, "source_ids": []},
-        "classification": {"primary_theme_id": "cloud", "tag_ids": ["ai"], "source_ids": ["human"]},
+        "classification": {"tag_ids": ["cloud", "ai"], "source_ids": ["human"]},
         "etf": None, "related_instrument_ids": [], "notes": "",
-        "sources": [{"id": "human", "kind": "manual", "label": "Reviewed primary business",
+        "sources": [{"id": "human", "kind": "manual", "label": "Reviewed tag evidence",
                      "url": None, "accessed_at": None, "fields": ["/classification"]}],
         "review": {"status": "reviewed", "reviewed_at": "2026-09-01T00:00:00Z",
                    "reviewer": "Human reviewer"},
@@ -43,7 +43,7 @@ def label(identifier, name):
 
 
 def vocabulary():
-    return {"themes": [label("cloud", "云计算")], "tags": [label("ai", "AI")],
+    return {"tags": [label("cloud", "云计算"), label("ai", "AI")],
             "industry_systems": [
                 dict(label("standard", "标准"), sectors=[label("technology", "科技")],
                      industry_groups=[],
@@ -78,10 +78,10 @@ def entries(records):
 
 def bundle(records=None, version=VERSION):
     records = [record()] if records is None else records
-    envelope = {"schema_version": "2.0.0", "data_version": version}
+    envelope = {"schema_version": "3.0.0", "data_version": version}
     files = {
         "instruments.json": encode(dict(envelope, instruments=records)),
-        "themes.json": encode(dict(envelope, **vocabulary())),
+        "vocabulary.json": encode(dict(envelope, **vocabulary())),
         "symbol-index.json": encode(dict(envelope, entries=entries(records))),
     }
     files["manifest.json"] = encode(dict(
@@ -130,16 +130,20 @@ class ConsumerTests(unittest.TestCase):
         result = snapshot.lookup(" \ttest\n", mic=" xnas ")
         self.assertEqual(result["instrument"]["id"], "ins-example")
         self.assertEqual(result["instrument"]["issuer"]["country"], "TW")
-        self.assertEqual(result["primary_theme"], vocabulary()["themes"][0])
-        self.assertEqual(snapshot.schema_version, "2.0.0")
+        self.assertEqual(set(result), {"instrument", "tags"})
+        self.assertNotIn("primary_theme_id", result["instrument"]["classification"])
+        self.assertEqual(result["tags"], vocabulary()["tags"])
+        self.assertEqual(snapshot.schema_version, "3.0.0")
         self.assertEqual(snapshot.data_version, VERSION)
         self.assertEqual(snapshot.source_commit, "c" * 40)
         self.assertEqual(snapshot.generated_at, "2026-09-01T00:00:00.000Z")
         self.assertFalse(snapshot.used_cache)
         self.assertIsNone(snapshot.warning)
         result["instrument"]["symbol"]["canonical"] = "MUTATED"
-        result["primary_theme"]["name_zh"] = "MUTATED"
-        self.assertEqual(snapshot.lookup("TEST")["primary_theme"]["name_zh"], "云计算")
+        result["tags"][0]["name_zh"] = "MUTATED"
+        result["tags"][1]["aliases"].append("MUTATED")
+        result["instrument"]["classification"]["tag_ids"].clear()
+        self.assertEqual(snapshot.lookup("TEST")["tags"], vocabulary()["tags"])
         self.assertEqual(snapshot.lookup("TEST")["instrument"]["symbol"]["canonical"], "TEST")
 
     def test_provider_scoping_preserves_punctuation_and_original(self):
@@ -238,6 +242,56 @@ class ConsumerTests(unittest.TestCase):
         with self.assertRaises(consumer.UnknownSymbol):
             consumer.Snapshot(bundle([])).lookup("TEST")
 
+    def test_reviewed_record_without_tags_preserves_review_requirements(self):
+        item = record()
+        item["classification"] = {"tag_ids": [], "source_ids": []}
+        item["sources"] = []
+        snapshot = consumer.Snapshot(bundle([item]))
+        self.assertEqual(snapshot.lookup("TEST"), {"instrument": item, "tags": []})
+        for field, value in (("reviewer", None), ("reviewed_at", None), ("status", "pending")):
+            broken = deepcopy(item)
+            broken["review"][field] = value
+            with self.subTest(field=field), self.assertRaises(consumer.SnapshotError):
+                consumer.Snapshot(bundle([broken]))
+        for field, value in (("name", {"en": None, "zh": None}),
+                             ("symbol", dict(item["symbol"], mic=None))):
+            broken = dict(item, **{field: value})
+            with self.subTest(field=field), self.assertRaises(consumer.SnapshotError):
+                consumer.Snapshot(bundle([broken]))
+
+    def test_multiple_tags_are_nonexclusive_and_resolve_in_record_order(self):
+        item = record()
+        item["classification"]["tag_ids"] = ["ai", "cloud"]
+        second = record("ins-second", "SECOND")
+        second["classification"]["tag_ids"] = ["cloud"]
+        snapshot = consumer.Snapshot(bundle([item, second]))
+        result = snapshot.lookup("TEST")
+        self.assertEqual(set(result), {"instrument", "tags"})
+        self.assertEqual(result["tags"], list(reversed(vocabulary()["tags"])))
+        self.assertEqual(snapshot.lookup("SECOND")["tags"], vocabulary()["tags"][:1])
+        self.assertTrue(all(set(tag) == {"id", "name_zh", "description", "aliases"}
+                            for tag in result["tags"]))
+
+    def test_classification_requires_known_unique_tags_and_covering_sources(self):
+        for classification, fields in (
+            ({"tag_ids": ["missing"], "source_ids": ["human"]}, ["/classification"]),
+            ({"tag_ids": ["ai", "ai"], "source_ids": ["human"]}, ["/classification"]),
+            ({"tag_ids": ["ai"], "source_ids": []}, ["/classification"]),
+            ({"tag_ids": ["ai"], "source_ids": ["missing"]}, ["/classification"]),
+            ({"tag_ids": ["ai"], "source_ids": ["human", "human"]}, ["/classification"]),
+            ({"tag_ids": ["ai"], "source_ids": ["human"]}, ["/name"]),
+            ({"tag_ids": [], "source_ids": ["missing"]}, ["/classification"]),
+            ({"tag_ids": [], "source_ids": ["human"]}, ["/name"]),
+        ):
+            item = record()
+            item["classification"] = classification
+            item["sources"][0]["fields"] = fields
+            with self.subTest(classification=classification, fields=fields), self.assertRaises(consumer.SnapshotError):
+                consumer.Snapshot(bundle([item]))
+        item = record()
+        item["classification"]["tag_ids"] = []
+        self.assertEqual(consumer.Snapshot(bundle([item])).lookup("TEST")["tags"], [])
+
     def test_etf_without_company_industry_and_unknown_attributes(self):
         item = record("ins-etf", "FUND")
         item["security_type"] = "etf"
@@ -248,7 +302,7 @@ class ConsumerTests(unittest.TestCase):
         result = consumer.Snapshot(bundle([item])).lookup("FUND")
         self.assertIsNone(result["instrument"]["industry"]["industry_id"])
         self.assertIsNone(result["instrument"]["etf"]["leverage_factor"])
-        self.assertEqual(result["primary_theme"]["id"], "cloud")
+        self.assertEqual([tag["id"] for tag in result["tags"]], ["cloud", "ai"])
         item["industry"]["system_id"] = "standard"
         item["industry"]["source_ids"] = ["human"]
         item["sources"][0]["fields"].append("/industry")
@@ -272,8 +326,12 @@ class ConsumerTests(unittest.TestCase):
             consumer.Snapshot(bundle([item]))
 
     def test_manifest_requires_exact_file_set(self):
+        self.assertEqual(consumer.DATA_FILES,
+                         ("instruments.json", "vocabulary.json", "symbol-index.json"))
+        self.assertNotIn("themes.json", self.files)
         for mutation in (
-            lambda value: value["files"].pop("themes.json"),
+            lambda value: value["files"].pop("vocabulary.json"),
+            lambda value: value["files"].update({"themes.json": value["files"].pop("vocabulary.json")}),
             lambda value: value["files"].update({"../outside.json": {"sha256": VERSION, "bytes": 1}}),
             lambda value: value.update({"unexpected": True}),
             lambda value: value.update({"files": []}),
@@ -288,9 +346,9 @@ class ConsumerTests(unittest.TestCase):
             lambda value: value.update({"source_commit": "not-a-commit"}),
             lambda value: value.update({"generated_at": "2026-02-30T00:00:00Z"}),
             lambda value: value.update({"generated_at": "2026-09-01T00:00:00+08:00"}),
-            lambda value: value["files"]["themes.json"].update({"bytes": True}),
-            lambda value: value["files"]["themes.json"].update({"bytes": -1}),
-            lambda value: value["files"]["themes.json"].update({"sha256": "x" * 64}),
+            lambda value: value["files"]["vocabulary.json"].update({"bytes": True}),
+            lambda value: value["files"]["vocabulary.json"].update({"bytes": -1}),
+            lambda value: value["files"]["vocabulary.json"].update({"sha256": "x" * 64}),
         ]
         for mutation in mutations:
             with self.subTest(mutation=mutation), self.assertRaises(consumer.SnapshotError):
@@ -306,7 +364,7 @@ class ConsumerTests(unittest.TestCase):
         with self.assertRaisesRegex(consumer.SnapshotError, "SHA-256"):
             consumer.Snapshot(corrupted)
         corrupted = dict(self.files)
-        corrupted["themes.json"] += b" "
+        corrupted["vocabulary.json"] += b" "
         with self.assertRaisesRegex(consumer.SnapshotError, "byte count"):
             consumer.Snapshot(corrupted)
 
@@ -318,16 +376,17 @@ class ConsumerTests(unittest.TestCase):
         ):
             with self.subTest(raw=raw[:40]), self.assertRaises(consumer.SnapshotError):
                 consumer.Snapshot(dict(self.files, **{"manifest.json": raw}))
-        raw = self.files["themes.json"].rstrip(b"\n")
-        broken = dict(self.files, **{"themes.json": raw})
+        raw = self.files["vocabulary.json"].rstrip(b"\n")
+        broken = dict(self.files, **{"vocabulary.json": raw})
         broken = change_payload(broken, "manifest.json", lambda value: value["files"].update(
-            {"themes.json": {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}}))
+            {"vocabulary.json": {"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}}))
         with self.assertRaisesRegex(consumer.SnapshotError, "newline"):
             consumer.Snapshot(broken)
 
     def test_schema_and_data_version_mismatch_every_envelope(self):
         for name in ("manifest.json",) + consumer.DATA_FILES:
-            for field, new_value in (("schema_version", "1.0.0"), ("data_version", NEXT_VERSION)):
+            for field, new_value in (("schema_version", "1.0.0"), ("schema_version", "2.0.0"),
+                                     ("data_version", NEXT_VERSION)):
                 with self.subTest(file=name, field=field), self.assertRaises(consumer.SnapshotError):
                     consumer.Snapshot(change_payload(self.files, name,
                         lambda value: value.update({field: new_value})))
@@ -335,18 +394,46 @@ class ConsumerTests(unittest.TestCase):
         with self.assertRaises(consumer.SnapshotError):
             consumer.Snapshot(self.files, NEXT_VERSION)
 
+    def test_legacy_releases_require_historical_consumer_or_maintenance_migration(self):
+        for version in ("1.0.0", "2.0.0"):
+            legacy = deepcopy(self.files)
+            legacy["themes.json"] = legacy.pop("vocabulary.json")
+            legacy = change_payload(legacy, "manifest.json", lambda value: value.update(
+                schema_version=version,
+                files={("themes.json" if name == "vocabulary.json" else name): info
+                       for name, info in value["files"].items()}))
+            guidance = "matching historical consumer or explicitly migrate maintenance source data"
+            with self.subTest(version=version):
+                with self.assertRaisesRegex(consumer.SnapshotError, guidance):
+                    consumer.Snapshot(legacy)
+                path = self.root / version
+                write_bundle(path, legacy)
+                with self.assertRaisesRegex(consumer.SnapshotError, guidance):
+                    consumer.load_snapshot(path)
+                cache = self.root / ("legacy-cache-" + version)
+                with mock.patch.object(consumer.urllib.request, "urlopen",
+                                       side_effect=download_from(legacy)) as opened:
+                    with self.assertRaisesRegex(consumer.SnapshotError, guidance):
+                        consumer.fetch_snapshot("https://example.invalid", cache)
+                self.assertEqual(opened.call_count, 1)
+                self.assertFalse(cache.exists())
+                self.assertEqual((path / "themes.json").read_bytes(), legacy["themes.json"])
+                self.assertFalse((path / "vocabulary.json").exists())
+
     def test_record_shape_review_unique_id_and_dangling_references(self):
         mutations = [
             lambda item: item.pop("name"),
             lambda item: item.update({"extra": 1}),
             lambda item: item.update({"id": "TEST"}),
             lambda item: item.update({"schema_version": "1.0.0"}),
+            lambda item: item.update({"schema_version": "2.0.0"}),
             lambda item: item["review"].update({"status": "pending"}),
             lambda item: item["review"].update({"reviewer": None}),
             lambda item: item["review"].update({"reviewed_at": "2026-02-30T00:00:00Z"}),
             lambda item: item["classification"].update({"primary_theme_id": "missing"}),
             lambda item: item["classification"].update({"primary_theme_id": None}),
             lambda item: item["classification"].update({"tag_ids": ["missing"]}),
+            lambda item: item["classification"].update({"tag_ids": ["ai", "ai"]}),
             lambda item: item["classification"].update({"source_ids": ["missing"]}),
             lambda item: item["classification"].update({"source_ids": []}),
             lambda item: item.update({"related_instrument_ids": ["ins-missing"]}),
@@ -367,13 +454,14 @@ class ConsumerTests(unittest.TestCase):
 
     def test_vocabulary_references_and_duplicates(self):
         for mutation in (
+            lambda value: value.update({"tags": []}),
             lambda value: value.update({"themes": []}),
-            lambda value: value["themes"].append(deepcopy(value["themes"][0])),
+            lambda value: value["tags"].append(deepcopy(value["tags"][0])),
             lambda value: value["industry_systems"][0]["industries"][0].update({"sector_id": "missing"}),
-            lambda value: value["themes"][0].update({"name_zh": ""}),
+            lambda value: value["tags"][0].update({"name_zh": ""}),
         ):
             with self.subTest(mutation=mutation), self.assertRaises(consumer.SnapshotError):
-                consumer.Snapshot(change_payload(self.files, "themes.json", mutation))
+                consumer.Snapshot(change_payload(self.files, "vocabulary.json", mutation))
 
     def test_every_index_field_must_match_and_index_is_complete(self):
         for field, changed in (
@@ -407,7 +495,8 @@ class ConsumerTests(unittest.TestCase):
             self.assertEqual((destination / name).read_bytes(), raw)
         self.assertEqual(list(cache.glob(".current-*")), [])
         self.assertEqual(list((cache / "snapshots").glob(".download-*")), [])
-        self.assertEqual(consumer.load_snapshot(destination).lookup("TEST")["primary_theme"]["id"], "cloud")
+        self.assertFalse((destination / "themes.json").exists())
+        self.assertEqual(consumer.load_snapshot(destination).lookup("TEST")["tags"], vocabulary()["tags"])
 
     def test_invalid_manifest_is_rejected_before_downloads_or_cache_creation(self):
         broken = change_payload(self.files, "manifest.json",
@@ -439,7 +528,7 @@ class ConsumerTests(unittest.TestCase):
                 self.assertFalse(caught)
         self.assertFalse((self.root / "absent").exists())
         cache = self.seed_cache()
-        (cache / "snapshots" / VERSION / "themes.json").write_bytes(b"broken\n")
+        (cache / "snapshots" / VERSION / "vocabulary.json").write_bytes(b"broken\n")
         with mock.patch.object(consumer.urllib.request, "urlopen", side_effect=OSError("offline")):
             with self.assertWarnsRegex(RuntimeWarning, "Cached snapshot is unusable"), self.assertRaisesRegex(OSError, "offline"):
                 consumer.fetch_snapshot("https://example.invalid", cache)
@@ -447,9 +536,9 @@ class ConsumerTests(unittest.TestCase):
     def test_mixed_latest_and_semantically_bad_download_preserve_old_snapshot(self):
         cache = self.seed_cache()
         next_files = bundle(version=NEXT_VERSION)
-        mixed = dict(next_files, **{"themes.json": self.files["themes.json"]})
+        mixed = dict(next_files, **{"vocabulary.json": self.files["vocabulary.json"]})
         semantic = change_payload(next_files, "instruments.json", lambda value:
-                                  value["instruments"][0]["classification"].update({"primary_theme_id": "missing"}))
+                                  value["instruments"][0]["classification"].update({"tag_ids": ["missing"]}))
         for broken in (mixed, semantic):
             with self.subTest(broken=broken), mock.patch.object(
                     consumer.urllib.request, "urlopen", side_effect=download_from(broken)):
@@ -508,11 +597,11 @@ class ConsumerTests(unittest.TestCase):
             with self.assertWarnsRegex(RuntimeWarning, "different bytes"):
                 result = consumer.fetch_snapshot("https://example.invalid", cache)
         self.assertEqual(result.lookup("TEST")["instrument"]["notes"], "")
-        (cache / "snapshots" / VERSION / "themes.json").write_bytes(b"corrupt\n")
+        (cache / "snapshots" / VERSION / "vocabulary.json").write_bytes(b"corrupt\n")
         with mock.patch.object(consumer.urllib.request, "urlopen", side_effect=download_from(self.files)):
             with self.assertWarnsRegex(RuntimeWarning, "Cached snapshot is unusable"), self.assertRaises(consumer.SnapshotError):
                 consumer.fetch_snapshot("https://example.invalid", cache)
-        self.assertEqual((cache / "snapshots" / VERSION / "themes.json").read_bytes(), b"corrupt\n")
+        self.assertEqual((cache / "snapshots" / VERSION / "vocabulary.json").read_bytes(), b"corrupt\n")
         self.assertEqual(list((cache / "snapshots").glob(".download-*")), [])
 
     def test_pointer_write_failure_preserves_previous_current(self):
@@ -574,7 +663,8 @@ class ConsumerTests(unittest.TestCase):
         self.assertEqual(stderr.getvalue(), "")
         result = json.loads(stdout.getvalue())
         self.assertEqual(result["instrument"]["id"], "ins-example")
-        self.assertEqual(result["primary_theme"]["name_zh"], "云计算")
+        self.assertNotIn("primary_theme", result)
+        self.assertEqual(result["tags"], vocabulary()["tags"])
         self.assertEqual(result["snapshot"]["data_version"], VERSION)
         self.assertEqual(result["snapshot"]["source_commit"], "c" * 40)
         self.assertFalse(result["snapshot"]["used_cache"])

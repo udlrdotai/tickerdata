@@ -4,9 +4,9 @@
 
 ## 当前可用的建议文件流程
 
-建议放在 `suggestions/*.json`，遵循 `schemas/suggestion.schema.json`。它包含稳定证券 ID、源记录 `base_record_sha256`、生成时间、生成器、`facts`、`inferences`、`missing`、逐字段 `proposed`、`new_theme_proposals`、`decisions`。
+建议放在 `suggestions/*.json`，遵循 `schemas/suggestion.schema.json`。它包含稳定证券 ID、源记录 `base_record_sha256`、生成时间、生成器、`facts`、`inferences`、`missing`、逐字段 `proposed`、`new_tag_proposals`、`decisions`。
 
-新建议使用 `schema_version: "2.0.0"`。历史 1.0.0 建议按保留的 `schemas/v1/suggestion.schema.json` 校验原始结构，不迁移版本或基准哈希；`suggestion:validate` 会拒绝将旧协议建议用于当前 2.0.0 数据。重新评估时生成新的建议，不覆盖旧历史。
+新建议使用 `schema_version: "3.0.0"`。历史 1.0.0 / 2.0.0 建议分别按保留的 `schemas/v1/suggestion.schema.json`、`schemas/v2/suggestion.schema.json` 校验原始结构，不迁移版本或基准哈希；`suggestion:validate` 会拒绝将旧协议建议用于当前 3.0.0 数据。重新评估时生成新的建议，不覆盖旧历史。
 
 `base_record_sha256` 是 `src/release.js` 的 `recordHash(record)`，即按项目 `stableStringify` 排序、带末尾换行的完整源记录 JSON 的 SHA-256，而不是任意原文件空白格式的哈希。获取示例：
 
@@ -17,7 +17,7 @@ node --input-type=module -e \
 npm run suggestion:validate -- suggestions/YOUR_SUGGESTION.json
 ```
 
-当前建议可提议主主题或辅助标签，不能在 JSON 中嵌入任意可执行补丁。主主题与标签必须来自既有词表；新主题只能进入 `new_theme_proposals`，先独立人工维护词表，不能直接引用到正式数据。
+当前建议只可提议 `/classification/tag_ids`，其值为已有标签 ID 的去重数组，也可以为空数组；不能在 JSON 中嵌入任意可执行补丁。新标签只能进入 `new_tag_proposals`，先独立人工维护词表，不能直接引用到正式数据。已取消主主题建议字段。
 
 `facts` 中的来源链接必须来自真实参考材料，`inferences` 明确是推断，`missing` 明确列出未知道的信息。语法校验不能判断链接是否真实支持说法，也不能防止事实幻觉，必须由人打开原材料核实 ticker、市场、类型及结论。
 
@@ -31,7 +31,7 @@ npm run suggestion:validate -- suggestions/YOUR_SUGGESTION.json
 
 输入仅包含人工选择的证券 ID、ticker、MIC、类型、已有字段、词表、可选结构化 provider 缓存及引用材料。业务简介等外部文本应序列化成独立数据，绝不能执行其中的命令、链接跳转要求或修改系统指令；生成器无源码写权限，无工具执行权限。
 
-输出限结构化 JSON，并通过现有 suggestion schema 和语义检查。要求选择已有 ID、短理由、区分事实 / 推断 / 缺失、不编造链接；新标签或新主题先提议，不扩写正式词表。不生成主观置信度数字。
+输出限结构化 JSON，并通过现有 suggestion schema 和语义检查。要求选择已有 ID、短理由、区分事实 / 推断 / 缺失、不编造链接；新标签先提议，不扩写正式词表。不生成主观置信度数字。
 
 密钥仅来自本地环境变量或受保护的 Actions Secrets。不能写进前端、URL、日志、浏览器存储、JSON 源文件或仓库。任何发送给模型的资料都需要确认允许发给选定提供商；尤其不能默认发送私有笔记、完整版权文本或凭据。
 

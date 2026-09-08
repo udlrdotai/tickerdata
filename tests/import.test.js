@@ -16,10 +16,10 @@ test('single record and vocabulary imports are validated without touching source
   assert.equal(prepared.changed.length, 1);
   assert.equal(stableStringify(current), before);
   const vocabulary = structuredClone(current.vocabulary);
-  vocabulary.themes[0].name_zh = 'Renamed display only';
+  vocabulary.tags[0].name_zh = 'Renamed display only';
   assert.equal(prepareImport(current, vocabulary).changed.length, 1);
-  record.classification.primary_theme_id = 'missing';
-  assert.throws(() => prepareImport(current, record), /unknown primary theme/);
+  record.classification.tag_ids = ['missing'];
+  assert.throws(() => prepareImport(current, record), /unknown tag/);
   assert.throws(() => prepareImport(current, { ...current, instruments: [] }), /do not delete historical/);
 });
 
@@ -34,25 +34,26 @@ test('full bundle applies dependent vocabulary and record edits together and blo
     }
     const before = await loadDataset(folder);
     const bundle = structuredClone(before);
-    const source = bundle.vocabulary.themes[0].id;
-    const target = bundle.vocabulary.themes[1].id;
-    bundle.vocabulary.themes = bundle.vocabulary.themes.filter((theme) => theme.id !== source);
+    const source = bundle.instruments[0].classification.tag_ids[0];
+    const target = bundle.vocabulary.tags.find((tag) => tag.id !== source).id;
+    bundle.vocabulary.tags = bundle.vocabulary.tags.filter((tag) => tag.id !== source);
     for (const record of bundle.instruments) {
-      if (record.classification.primary_theme_id === source) {
-        record.classification.primary_theme_id = target;
+      if (record.classification.tag_ids.includes(source)) {
+        record.classification.tag_ids = [...new Set(record.classification.tag_ids.map((id) => id === source ? target : id))];
         record.review.status = 'needs_review';
       }
     }
     const preview = prepareImport(before, bundle);
     assert.ok(preview.changed.length >= 2);
-    assert.throws(() => prepareImport(before, bundle.vocabulary), /unknown primary theme/);
+    assert.throws(() => prepareImport(before, bundle.vocabulary), /unknown tag/);
     await assert.rejects(applyImport(folder, bundle, '0'.repeat(64)), /Source changed/);
     assert.deepEqual(await loadDataset(folder), before);
     await applyImport(folder, bundle, preview.expected);
     assert.deepEqual(await loadDataset(folder), bundle);
     await assert.rejects(applyImport(folder, before, preview.expected), /Source changed/);
     const onDisk = JSON.parse(await readFile(resolve(folder, 'data/instruments/ins-000001.json'), 'utf8'));
-    assert.equal(onDisk.classification.primary_theme_id, target);
+    assert.ok(onDisk.classification.tag_ids.includes(target));
+    assert.ok(!onDisk.classification.tag_ids.includes(source));
   } finally {
     await rm(folder, { recursive: true });
   }

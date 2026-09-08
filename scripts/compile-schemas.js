@@ -11,9 +11,11 @@ export async function compileSchemas() {
   addFormats(ajv, { mode: 'full', formats: ['date', 'date-time', 'uri'] });
   for (const name of ['common', 'instrument', 'vocabulary', 'suggestion']) {
     ajv.addSchema(JSON.parse(await readFile(`${root}schemas/${name}.schema.json`, 'utf8')));
-    const legacy = JSON.parse(await readFile(`${root}schemas/v1/${name}.schema.json`, 'utf8'));
-    legacy.$id = `https://tickerdata.local/schemas/v1/${name}`;
-    ajv.addSchema(legacy);
+    for (const version of ['v1', 'v2']) {
+      const legacy = JSON.parse(await readFile(`${root}schemas/${version}/${name}.schema.json`, 'utf8'));
+      legacy.$id = `https://tickerdata.local/schemas/${version}/${name}`;
+      ajv.addSchema(legacy);
+    }
   }
   const code = standaloneCode(ajv, {
     instrument: 'https://tickerdata.local/schemas/instrument',
@@ -22,6 +24,9 @@ export async function compileSchemas() {
     instrumentV1: 'https://tickerdata.local/schemas/v1/instrument',
     vocabularyV1: 'https://tickerdata.local/schemas/v1/vocabulary',
     suggestionV1: 'https://tickerdata.local/schemas/v1/suggestion',
+    instrumentV2: 'https://tickerdata.local/schemas/v2/instrument',
+    vocabularyV2: 'https://tickerdata.local/schemas/v2/vocabulary',
+    suggestionV2: 'https://tickerdata.local/schemas/v2/suggestion',
   });
   await mkdir(`${root}web/generated`, { recursive: true });
   await writeFile(`${root}web/generated/validators.cjs`, code);

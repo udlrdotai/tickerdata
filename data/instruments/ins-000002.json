@@ -1,11 +1,11 @@
 {
   "classification": {
-    "primary_theme_id": "ai-cloud",
     "source_ids": [
       "manual-example"
     ],
     "tag_ids": [
-      "ai"
+      "ai",
+      "ai-cloud"
     ]
   },
   "etf": null,
@@ -33,7 +33,7 @@
     "reviewer": null,
     "status": "pending"
   },
-  "schema_version": "2.0.0",
+  "schema_version": "3.0.0",
   "security_type": "stock",
   "sources": [
     {
