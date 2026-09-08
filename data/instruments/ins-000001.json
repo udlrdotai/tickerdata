@@ -14,31 +14,35 @@
     "industry_group_id": "semiconductors-semiconductor-equipment",
     "industry_id": "semiconductors-semiconductor-equipment",
     "sector_id": "information-technology",
-    "source_ids": ["financedatabase-equities"],
+    "source_ids": [
+      "financedatabase-equities"
+    ],
     "system_id": "financedatabase"
   },
   "issuer": {
-    "country": null,
+    "country": "US",
     "id": null
   },
-  "listing_status": "unknown",
+  "listing_status": "active",
   "name": {
-    "en": null,
-    "zh": null
+    "en": "navida",
+    "zh": "英伟达"
   },
   "notes": "初始化占位样例；仅采用用户提供的示例语义，未经独立核实。名称、MIC、上市状态及未核实属性留空或 unknown。请逐项核实后再填写审核人和时间；不可直接作为已审核事实。内部 ID 是本项目分配的标识，不是官方证券代码。",
   "related_instrument_ids": [],
   "review": {
-    "reviewed_at": null,
-    "reviewer": null,
-    "status": "pending"
+    "reviewed_at": "2026-09-08T04:31:10.344Z",
+    "reviewer": "gankthisway",
+    "status": "reviewed"
   },
   "schema_version": "2.0.0",
   "security_type": "stock",
   "sources": [
     {
       "accessed_at": "2026-09-08T01:03:47Z",
-      "fields": ["/industry"],
+      "fields": [
+        "/industry"
+      ],
       "id": "financedatabase-equities",
       "kind": "provider",
       "label": "FinanceDatabase NVDA (NMS/XNAS) 原值：Information Technology → Semiconductors & Semiconductor Equipment → Semiconductors & Semiconductor Equipment。仅记录上游分类，待人工审核。",
@@ -59,7 +63,7 @@
     "aliases": [],
     "canonical": "NVDA",
     "history": [],
-    "mic": null,
+    "mic": "XNAS",
     "original": "NVDA"
   }
 }
