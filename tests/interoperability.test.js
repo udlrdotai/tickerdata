@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { loadDataset } from '../scripts/cli.js';
+import { createDatasetFixture } from './fixtures/dataset.js';
 import { createRelease, sha256 } from '../src/release.js';
 import { emptyInstrument, emptyEtf, SCHEMA_VERSION, stableStringify } from '../src/model.js';
 import { validateDataset } from '../src/validation.js';
 
 test('Python consumes actual Node publisher bytes for stocks, ETFs, aliases and empty releases', async () => {
-  const source = await loadDataset();
+  const source = createDatasetFixture();
   const folder = await mkdtemp(resolve('.interop-test-'));
   try {
     const empty = createRelease(source);
@@ -43,6 +43,21 @@ test('Python consumes actual Node publisher bytes for stocks, ETFs, aliases and 
       'print(json.dumps(s.lookup("BRK-B", provider="yahoo")))',
     ].join('\n'), folder, release.version], { encoding: 'utf8' });
     assert.equal(JSON.parse(output).instrument.symbol.canonical, 'BRK.B');
+    fixture.instruments[1].review.status = 'pending';
+    fixture.instruments[2].review.status = 'needs_review';
+    const mixed = createRelease(fixture);
+    for (const [name, bytes] of Object.entries(mixed.files)) await writeFile(resolve(folder, name), bytes);
+    execFileSync('python3', ['-c', [
+      'import sys',
+      'from examples.consumer import load_snapshot, UnknownSymbol',
+      's=load_snapshot(sys.argv[1], sys.argv[2])',
+      'assert len(s._records)==15',
+      'assert s.lookup("NVDA")["instrument"]["review"]["status"]=="reviewed"',
+      'for symbol in ["CRWV", "MSTR"]:',
+      '    try: s.lookup(symbol)',
+      '    except UnknownSymbol: pass',
+      '    else: raise AssertionError("Unreviewed record was published")',
+    ].join('\n'), folder, mixed.version]);
   } finally {
     await rm(folder, { recursive: true });
   }

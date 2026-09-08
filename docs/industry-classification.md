@@ -49,7 +49,7 @@
 
 ## 现有股票的上游分类
 
-以下只是**上游原值的可追溯记录**，不是独立确认后的分类结论。10 只股票均保持 `pending`；没有据此补写审核人、审核时间、上市状态、名称或 MIC。
+以下是首次导入时的**上游原值及来源快照**，不是独立确认后的分类结论。首次导入的 10 只股票均为 `pending`，没有据此补写审核人、审核时间、上市状态、名称或 MIC。后续可以经过人工核验补齐资料并变为 `reviewed`；当前值和审核状态以证券源文件为准，不以本节的导入快照锁定日常维护。
 
 来源文件：[NMS.csv](https://github.com/JerBouma/FinanceDatabase/blob/ac05d03dbed851a6fd3905a2e92ee036d0397760/database/equities/NMS.csv)、[NYQ.csv](https://github.com/JerBouma/FinanceDatabase/blob/ac05d03dbed851a6fd3905a2e92ee036d0397760/database/equities/NYQ.csv)。每条证券的 `sources` 单独保存其文件链接、获取时间、上游代码和原始三层名称，且通过 `industry.source_ids` 关联 `/industry` 依据。
 
