@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = '1.0.0';
+export const SCHEMA_VERSION = '2.0.0';
 
 export function normalizeSymbol(value) {
   return value.trim().toUpperCase();
@@ -13,7 +13,7 @@ export function emptyInstrument(id = '') {
     security_type: 'stock',
     issuer: { id: null, country: null },
     listing_status: 'unknown',
-    industry: { system_id: null, sector_id: null, industry_id: null, source_ids: [] },
+    industry: { system_id: null, sector_id: null, industry_group_id: null, industry_id: null, source_ids: [] },
     classification: { primary_theme_id: null, tag_ids: [], source_ids: [] },
     etf: null,
     related_instrument_ids: [],

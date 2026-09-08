@@ -7,10 +7,11 @@
   "etf": null,
   "id": "ins-000007",
   "industry": {
-    "industry_id": null,
-    "sector_id": null,
-    "source_ids": [],
-    "system_id": null
+    "industry_group_id": "semiconductors-semiconductor-equipment",
+    "industry_id": "semiconductors-semiconductor-equipment",
+    "sector_id": "information-technology",
+    "source_ids": ["financedatabase-equities"],
+    "system_id": "financedatabase"
   },
   "issuer": {
     "country": null,
@@ -28,9 +29,18 @@
     "reviewer": null,
     "status": "pending"
   },
-  "schema_version": "1.0.0",
+  "schema_version": "2.0.0",
   "security_type": "stock",
-  "sources": [],
+  "sources": [
+    {
+      "accessed_at": "2026-09-08T01:03:47Z",
+      "fields": ["/industry"],
+      "id": "financedatabase-equities",
+      "kind": "provider",
+      "label": "FinanceDatabase ARM (NMS/XNAS) 原值：Information Technology → Semiconductors & Semiconductor Equipment → Semiconductors & Semiconductor Equipment。仅记录上游分类，待人工审核。",
+      "url": "https://github.com/JerBouma/FinanceDatabase/blob/ac05d03dbed851a6fd3905a2e92ee036d0397760/database/equities/NMS.csv"
+    }
+  ],
   "symbol": {
     "aliases": [],
     "canonical": "ARM",

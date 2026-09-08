@@ -37,6 +37,10 @@ export function prepareImport(current, payload) {
 export async function applyImport(directory, payload, expected) {
   const current = await loadDataset(directory);
   const prepared = prepareImport(current, payload);
+  return applyPreparedImport(directory, prepared, expected);
+}
+
+export async function applyPreparedImport(directory, prepared, expected) {
   if (!expected || expected !== prepared.expected) throw new Error('Source changed or expected hash missing. Preview again before --apply --expect HASH.');
   if (!prepared.changed.length) return prepared;
   const cache = resolve(directory, '.cache');

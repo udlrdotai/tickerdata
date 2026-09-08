@@ -4,6 +4,49 @@ import { validateDatasetShape } from '../src/validation.js';
 export const clone = (value) => JSON.parse(JSON.stringify(value));
 const same = (a, b) => stableStringify(a) === stableStringify(b);
 
+export function industryChoices(vocabulary, selection) {
+  const system = vocabulary.industry_systems.find((item) => item.id === selection.system_id);
+  const groups = system?.industry_groups ?? [];
+  const sector = selection.sector_id || groups.find((item) => item.id === selection.industry_group_id)?.sector_id;
+  const compatible = (selected, parent) => !selected || !parent || selected === parent;
+  return {
+    sectors: system?.sectors ?? [],
+    industry_groups: groups.filter((item) => compatible(selection.sector_id, item.sector_id)),
+    industries: (system?.industries ?? []).filter((item) =>
+      compatible(sector, item.sector_id) &&
+      compatible(sector, groups.find((group) => group.id === item.industry_group_id)?.sector_id) &&
+      compatible(selection.industry_group_id, item.industry_group_id)),
+  };
+}
+
+export function changeIndustrySelection(vocabulary, selection, field, value) {
+  const next = clone(selection);
+  next[field] = value || null;
+  if (field === 'system_id') {
+    next.sector_id = next.industry_group_id = next.industry_id = null;
+    return next;
+  }
+  const system = vocabulary.industry_systems.find((item) => item.id === next.system_id);
+  if (field === 'industry_id') {
+    const industry = system?.industries.find((item) => item.id === next.industry_id);
+    const group = system?.industry_groups.find((item) => item.id === industry?.industry_group_id);
+    if (industry?.sector_id || group?.sector_id) next.sector_id = industry?.sector_id || group.sector_id;
+    if (industry?.industry_group_id) next.industry_group_id = industry.industry_group_id;
+  } else {
+    if (field === 'industry_group_id') {
+      const group = system?.industry_groups.find((item) => item.id === next.industry_group_id);
+      if (group) next.sector_id = group.sector_id;
+    }
+    if (!industryChoices(vocabulary, next).industry_groups.some((item) => item.id === next.industry_group_id)) {
+      next.industry_group_id = null;
+    }
+    if (!industryChoices(vocabulary, next).industries.some((item) => item.id === next.industry_id)) {
+      next.industry_id = null;
+    }
+  }
+  return next;
+}
+
 export function matchesRecord(record, filters) {
   const haystack = [
     record.id, record.symbol.original, record.symbol.canonical, record.symbol.mic,

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { emptyInstrument, emptyEtf, stableStringify } from '../src/model.js';
+import { emptyInstrument, emptyEtf, stableStringify, SCHEMA_VERSION } from '../src/model.js';
 import { validateDataset, validateReviewTransitions, validateSuggestion, symbolEntries } from '../src/validation.js';
 import { createRelease, sha256, recordHash } from '../src/release.js';
 import { loadDataset } from '../scripts/cli.js';
@@ -20,7 +20,7 @@ function record(id = 'ins-test', symbol = 'TEST', mic = 'XNAS') {
 }
 
 function dataset(records = [record()]) {
-  return { schema_version: '1.0.0', instruments: records, vocabulary: structuredClone(vocabulary) };
+  return { schema_version: SCHEMA_VERSION, instruments: records, vocabulary: structuredClone(vocabulary) };
 }
 
 function expectInvalid(change, pattern) {
@@ -102,7 +102,7 @@ test('one primary theme, multiple unique tags and stable vocabulary IDs', () => 
 
 test('industry taxonomy and field-level sources are independently validated', () => {
   const value = dataset();
-  value.instruments[0].industry = { system_id: 'yahoo', sector_id: 'technology', industry_id: 'semiconductors', source_ids: ['yahoo-source'] };
+  value.instruments[0].industry = { system_id: 'yahoo', sector_id: 'technology', industry_group_id: null, industry_id: 'semiconductors', source_ids: ['yahoo-source'] };
   value.instruments[0].sources.push({ id: 'yahoo-source', kind: 'provider', label: 'A manually checked provider field', url: 'https://finance.yahoo.com/', accessed_at: '2026-09-01T00:00:00Z', fields: ['/industry'] });
   assert.deepEqual(validateDataset(value), []);
   value.instruments[0].industry.source_ids = ['human'];
@@ -110,6 +110,95 @@ test('industry taxonomy and field-level sources are independently validated', ()
   value.instruments[0].industry.industry_id = 'missing';
   assert.match(validateDataset(value).join('\n'), /unknown industry/);
   expectInvalid((data) => { data.instruments[0].classification.source_ids = []; }, /classification needs/);
+});
+
+function hierarchyDataset() {
+  const value = dataset();
+  const label = (id) => ({ id, name_zh: id, aliases: [], description: '' });
+  value.vocabulary.industry_systems.push({
+    ...label('test-system'),
+    sectors: [label('first-sector'), label('second-sector')],
+    industry_groups: [
+      { ...label('first-group'), sector_id: 'first-sector' },
+      { ...label('second-group'), sector_id: 'second-sector' },
+    ],
+    industries: [
+      { ...label('first-industry'), sector_id: 'first-sector', industry_group_id: 'first-group' },
+      { ...label('second-industry'), sector_id: 'second-sector', industry_group_id: 'second-group' },
+    ],
+  });
+  value.instruments[0].industry = { system_id: 'test-system', sector_id: 'first-sector', industry_group_id: 'first-group', industry_id: 'first-industry', source_ids: ['human'] };
+  value.instruments[0].sources[0].fields.push('/industry');
+  return value;
+}
+
+test('three-level references check every supplied ancestor and allow omitted ancestors', () => {
+  const base = hierarchyDataset();
+  assert.deepEqual(validateDataset(base), []);
+  for (const mutation of [
+    (item) => { item.industry_group_id = 'missing'; },
+    (item) => { item.industry_group_id = 'second-group'; },
+    (item) => { item.sector_id = 'second-sector'; },
+    (item) => { item.industry_id = 'second-industry'; },
+    (item) => { item.system_id = 'yahoo'; },
+    (item) => { item.system_id = null; },
+    (item) => { item.source_ids = []; },
+    (item) => { delete item.industry_group_id; },
+  ]) {
+    const value = structuredClone(base);
+    mutation(value.instruments[0].industry);
+    assert.ok(validateDataset(value).length);
+  }
+  for (const omitted of [['sector_id'], ['industry_group_id'], ['sector_id', 'industry_group_id'], ['sector_id', 'industry_id']]) {
+    const value = structuredClone(base);
+    for (const key of omitted) value.instruments[0].industry[key] = null;
+    assert.deepEqual(validateDataset(value), []);
+  }
+  const derived = structuredClone(base);
+  derived.vocabulary.industry_systems.at(-1).industries[0].sector_id = null;
+  derived.instruments[0].industry.industry_group_id = null;
+  derived.instruments[0].industry.sector_id = 'second-sector';
+  assert.match(validateDataset(derived).join('\n'), /parent group.*sector/);
+  const inferred = structuredClone(base);
+  inferred.vocabulary.industry_systems.at(-1).industries[0].industry_group_id = null;
+  inferred.instruments[0].industry.sector_id = null;
+  assert.deepEqual(validateDataset(inferred), []);
+  inferred.instruments[0].industry.industry_group_id = 'second-group';
+  assert.match(validateDataset(inferred).join('\n'), /industry group and industry belong to different sectors/);
+  const etf = structuredClone(base);
+  etf.instruments[0].security_type = 'etf';
+  etf.instruments[0].etf = emptyEtf();
+  etf.instruments[0].industry.sector_id = null;
+  etf.instruments[0].industry.industry_id = null;
+  assert.match(validateDataset(etf).join('\n'), /ETF cannot/);
+});
+
+test('vocabulary groups are strict, unique, scoped and consistent with industry parents', () => {
+  for (const mutation of [
+    (system) => { delete system.industry_groups; },
+    (system) => { system.industry_groups[0].sector_id = null; },
+    (system) => { system.industry_groups[0].sector_id = 'technology'; },
+    (system) => { system.industry_groups.push(structuredClone(system.industry_groups[0])); },
+    (system) => { system.industry_groups[0].extra = true; },
+    (system) => { delete system.industries[0].industry_group_id; },
+    (system) => { system.industries[0].industry_group_id = 'missing'; },
+    (system) => { system.industries[0].industry_group_id = 'second-group'; },
+  ]) {
+    const value = hierarchyDataset();
+    mutation(value.vocabulary.industry_systems.at(-1));
+    assert.ok(validateDataset(value).length);
+  }
+  const value = hierarchyDataset();
+  const system = value.vocabulary.industry_systems.at(-1);
+  value.vocabulary.industry_systems = [system];
+  system.id = 'financedatabase';
+  value.instruments[0].industry.system_id = system.id;
+  assert.deepEqual(validateDataset(value), []);
+  for (const key of ['sector_id', 'industry_group_id']) {
+    const incomplete = structuredClone(value);
+    incomplete.vocabulary.industry_systems[0].industries[0][key] = null;
+    assert.match(validateDataset(incomplete).join('\n'), /requires sector and industry group/);
+  }
 });
 
 test('ETF has no company industry, needs no holdings, and may have unknown attributes', () => {
@@ -188,7 +277,7 @@ test('suggestions cannot mutate authority; existing IDs, stale bases and decisio
   const value = dataset();
   const before = stableStringify(value);
   const suggestion = {
-    schema_version: '1.0.0', id: 'suggestion-example', instrument_id: 'ins-test',
+    schema_version: SCHEMA_VERSION, id: 'suggestion-example', instrument_id: 'ins-test',
     base_record_sha256: recordHash(value.instruments[0]), generated_at: '2026-09-01T00:00:00Z', generator: 'manual-test',
     facts: [], inferences: ['A hypothesis, not a confirmed fact'], missing: ['Independent source verification'],
     proposed: [{ field: '/classification/primary_theme_id', value: 'ai-cloud', reason: 'Human must assess this reasoning.' }],

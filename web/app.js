@@ -1,6 +1,6 @@
 import { validateDataset, validateReviewTransitions } from '../src/validation.js';
-import { emptyInstrument, emptyEtf, stableStringify, normalizeSymbol } from '../src/model.js';
-import { clone, matchesRecord, prepareRecord, references, applyVocabulary, mergeVocabulary, changedFiles, githubLinks, prepareImportedDataset, downgradeRelatedReviews } from './editor-model.js';
+import { SCHEMA_VERSION, emptyInstrument, emptyEtf, stableStringify, normalizeSymbol } from '../src/model.js';
+import { clone, matchesRecord, prepareRecord, references, applyVocabulary, mergeVocabulary, changedFiles, githubLinks, prepareImportedDataset, downgradeRelatedReviews, industryChoices, changeIndustrySelection } from './editor-model.js';
 
 const app = document.querySelector('#app');
 const state = {
@@ -221,7 +221,7 @@ function renderExports(parent) {
       render();
       report('已触发完整维护包下载。包内包含 schema_version、全部源 instruments（包括待审核记录）及完整 vocabulary。\n先预览：npm run import -- tickerdata-maintenance-bundle.json\n确认差异后应用：npm run import -- tickerdata-maintenance-bundle.json --apply --expect HASH\n将 HASH 替换为预览输出的源数据哈希。随后校验并整体提交 / PR；导入不会自动发布。');
     }, 'primary'));
-    panel.append(node('p', '跨词表 / 证券的修改（尤其 ID 合并）必须整体提交。维护包格式为 {schema_version:"1.0.0", instruments:[全部源记录], vocabulary:{完整词表}}，含未修改及待审核记录，并非仅已发布数据。使用仓库导入命令，或将各记录写入 data/instruments/<id>.json、词表写入 data/vocabulary.json；校验后将上述全部变更一并提交。', 'hint'));
+    panel.append(node('p', `跨词表 / 证券的修改（尤其 ID 合并）必须整体提交。维护包格式为 {schema_version:"${SCHEMA_VERSION}", instruments:[全部源记录], vocabulary:{完整词表}}，含未修改及待审核记录，并非仅已发布数据。使用仓库导入命令，或将各记录写入 data/instruments/<id>.json、词表写入 data/vocabulary.json；校验后将上述全部变更一并提交。`, 'hint'));
     panel.append(node('pre', 'npm run import -- tickerdata-maintenance-bundle.json\nnpm run import -- tickerdata-maintenance-bundle.json --apply --expect HASH'));
     panel.append(node('p', '先在仓库目录运行第一条命令，检查完整修改前 / 后差异及源数据哈希；再将第二条命令中的 HASH 替换为此次预览输出的哈希。源数据已变化时请重新预览，不要绕过并发保护。', 'hint'));
   }
@@ -422,20 +422,35 @@ function renderRecord(record) {
 
   if (working.security_type !== 'etf') {
     const industry = section(form, '2 · 标准行业分类（与主题独立）');
-    const systems = state.dataset.vocabulary.industry_systems;
-    const system = systems.find((item) => item.id === working.industry.system_id);
-    const systemControl = bind(industry, '行业体系', 'industry.system_id', '行业可以留空；一旦填写，必须有行业来源。', 'select', systems);
-    const sectorControl = bind(industry, '板块 / Sector', 'industry.sector_id', null, 'select', system?.sectors ?? []);
-    const industryControl = bind(industry, '行业 / Industry', 'industry.industry_id', null, 'select', system?.industries ?? []);
-    systemControl.addEventListener('change', () => {
-      const selected = systems.find((item) => item.id === systemControl.value);
-      options(sectorControl, selected?.sectors ?? []);
-      options(industryControl, selected?.industries ?? []);
-    });
-    industryControl.addEventListener('change', () => {
-      const selected = systems.find((item) => item.id === systemControl.value)?.industries.find((item) => item.id === industryControl.value);
-      if (selected?.sector_id) sectorControl.value = selected.sector_id;
-    });
+    const vocabulary = state.dataset.vocabulary;
+    const systems = [...vocabulary.industry_systems].sort((a, b) =>
+      Number(b.id === 'financedatabase') - Number(a.id === 'financedatabase'));
+    let selection = clone(working.industry);
+    const choices = industryChoices(vocabulary, selection);
+    const controls = {
+      system_id: bind(industry, '行业体系', 'industry.system_id', '新录入推荐 FinanceDatabase 三层体系（非官方 GICS）；不会自动填写。行业可以留空；一旦填写，必须有行业来源。', 'select', systems),
+      sector_id: bind(industry, '板块 / Sector', 'industry.sector_id', null, 'select', choices.sectors),
+      industry_group_id: bind(industry, '行业组 / Industry Group', 'industry.industry_group_id', '按板块筛选；Yahoo 等无行业组的体系保留为空。', 'select', choices.industry_groups),
+      industry_id: bind(industry, '行业 / Industry', 'industry.industry_id', '按板块与行业组筛选；选择行业会补全已知父级。', 'select', choices.industries),
+    };
+    const refresh = () => {
+      const available = industryChoices(vocabulary, selection);
+      const system = systems.find((item) => item.id === selection.system_id);
+      options(controls.sector_id, available.sectors, selection.sector_id);
+      options(controls.industry_group_id, available.industry_groups, selection.industry_group_id,
+        system && !system.industry_groups.length ? '此体系无行业组（保留为空）' : '未填写');
+      options(controls.industry_id, available.industries, selection.industry_id);
+      controls.sector_id.disabled = !system;
+      controls.industry_group_id.disabled = !system?.industry_groups.length;
+      controls.industry_id.disabled = !system;
+    };
+    for (const [key, control] of Object.entries(controls)) {
+      control.addEventListener('change', () => {
+        selection = changeIndustrySelection(vocabulary, selection, key, control.value);
+        refresh();
+      });
+    }
+    refresh();
     bind(industry, '行业来源 ID', 'industry.source_ids', sourceHint, 'ids');
   } else form.append(node('p', 'ETF 不使用公司板块 / 行业；请在 ETF 属性中描述敞口，并独立选择交易主题。', 'notice'));
 
@@ -515,7 +530,7 @@ function renderRecord(record) {
     if (next.security_type === 'etf') {
       const hasIndustry = Object.entries(next.industry).some(([key, value]) => key === 'source_ids' ? value.length > 0 : value !== null);
       if (hasIndustry && !window.confirm('切换为 ETF 会清空不适用的公司行业分类。继续？')) { type.value = working.security_type; return; }
-      next.industry = { system_id: null, sector_id: null, industry_id: null, source_ids: [] };
+      next.industry = { system_id: null, sector_id: null, industry_group_id: null, industry_id: null, source_ids: [] };
     } else if (working.etf && !window.confirm('切换为非 ETF 会移除 ETF 属性。继续？')) {
       type.value = working.security_type;
       return;
@@ -553,6 +568,40 @@ function renderRecord(record) {
   detail.append(preview);
 }
 
+function renderIndustryTree(parent, system) {
+  const tree = node('details', null, 'industry-tree');
+  tree.open = true;
+  tree.append(node('summary', `三层行业明细：${system.sectors.length} 板块 / ${system.industry_groups.length} 行业组 / ${system.industries.length} 行业`));
+  tree.append(node('p', system.description, 'hint'));
+  if (!system.industry_groups.length) tree.append(node('p', '此体系无行业组；行业直接列在板块下，组引用保留为空。', 'hint'));
+  const caption = (item) => `${item.name_zh} · ${item.aliases.join(' / ')} [${item.id}]`;
+  const appendIndustries = (container, industries) => {
+    const items = node('ul');
+    for (const industry of industries) {
+      items.append(node('li', `${caption(industry)} · 板块：${industry.sector_id ?? '未填写'} · 行业组：${industry.industry_group_id ?? '未填写'}`));
+    }
+    container.append(items);
+  };
+  for (const sector of system.sectors) {
+    const sectorBox = node('details');
+    sectorBox.append(node('summary', `板块 / Sector：${caption(sector)}`));
+    for (const group of system.industry_groups.filter((item) => item.sector_id === sector.id)) {
+      const groupBox = node('details');
+      groupBox.append(node('summary', `行业组 / Industry Group：${caption(group)}`));
+      appendIndustries(groupBox, system.industries.filter((item) => item.industry_group_id === group.id));
+      sectorBox.append(groupBox);
+    }
+    appendIndustries(sectorBox, system.industries.filter((item) => item.sector_id === sector.id && !item.industry_group_id));
+    tree.append(sectorBox);
+  }
+  const unassigned = system.industries.filter((item) => !item.sector_id && !item.industry_group_id);
+  if (unassigned.length) {
+    tree.append(node('p', '未指定父级的行业'));
+    appendIndustries(tree, unassigned);
+  }
+  parent.append(tree);
+}
+
 function renderVocabulary(sidebar) {
   sidebar.append(node('h2', '词表维护'));
   const tabs = node('div', null, 'actions');
@@ -582,12 +631,15 @@ function renderVocabulary(sidebar) {
   detail.append(formState);
   links(detail, 'data/vocabulary.json');
   const label = labels.find((item) => item.id === state.vocabId) ?? (state.vocabId === '__new'
-    ? { id: `${kind === 'themes' ? 'theme' : kind === 'tags' ? 'tag' : 'system'}-${crypto.randomUUID()}`, name_zh: '', description: '', aliases: [], ...(kind === 'industry_systems' ? { sectors: [], industries: [] } : {}) }
+    ? { id: `${kind === 'themes' ? 'theme' : kind === 'tags' ? 'tag' : 'system'}-${crypto.randomUUID()}`, name_zh: '', description: '', aliases: [], ...(kind === 'industry_systems' ? { sectors: [], industry_groups: [], industries: [] } : {}) }
     : null);
-  if (label) renderLabelForm(detail, kind, label, labels.some((item) => item.id === label.id));
+  if (label) {
+    if (kind === 'industry_systems') renderIndustryTree(detail, label);
+    renderLabelForm(detail, kind, label, labels.some((item) => item.id === label.id));
+  }
   else detail.append(node('p', '选择左侧词条编辑，或新增词条；也可使用下方完整词表 JSON 编辑器。', 'empty'));
   const advanced = node('details');
-  advanced.append(node('summary', '高级：编辑完整词表 JSON（含行业体系 / 板块 / 行业）'));
+  advanced.append(node('summary', '高级：编辑完整词表 JSON（含行业体系 / 板块 / 行业组 / 行业）'));
   const json = input(advanced, '完整 vocabulary.json', stableStringify(state.dataset.vocabulary), '此编辑器与上方结构化编辑器互斥：请只修改其中一个后保存。整体校验通过前不会替换草稿。被引用 ID 的删除会被拒绝。', true);
   json.classList.add('code');
   json.rows = 20;

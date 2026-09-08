@@ -5,7 +5,7 @@
   "additionalProperties": false,
   "required": ["schema_version", "id", "instrument_id", "base_record_sha256", "generated_at", "generator", "facts", "inferences", "missing", "proposed", "new_theme_proposals", "decisions"],
   "properties": {
-    "schema_version": { "const": "2.0.0" },
+    "schema_version": { "const": "1.0.0" },
     "id": { "$ref": "common#/definitions/id" },
     "instrument_id": { "type": "string", "pattern": "^ins-[a-z0-9]+(?:-[a-z0-9]+)*$" },
     "base_record_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },

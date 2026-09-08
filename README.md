@@ -10,6 +10,8 @@
 
 包含 NVDA、CRWV、MSTR、TSLA、GOOG、GOOGL、ARM、BABA、TSM、BRK-B、SPY、QQQ、SOXL、KWEB、GLD、TLT、IBIT 共 17 条**待审核占位样例**。用户给出的分类语义只是审核起点；没有独立核实的名称、MIC、地区等保留为空，上市状态为 `unknown`。没有伪造审核人、日期、外部标识或置信度。
 
+公司行业采用独立的 FinanceDatabase **板块 → 行业组 → 行业** 体系，词表已包含 11 / 24 / 69 个节点，10 只股票已记录固定版本的上游分类与来源，仍待人工审核。GOOG / GOOGL 的上游电信分类标有疑点，不将导入视为事实确认。保留旧 Yahoo 体系、独立交易主题与标签；7 只 ETF 不套用公司行业。[完整中英分类明细与股票映射](docs/industry-classification.md)。
+
 **因此首次构建的正式 `instruments.json` 和索引为空，这是预期行为。** 网页可以查看和维护所有待审核源记录。样例、单元测试中的虚构证券，都不能作为投资事实。
 
 本项目使用公开仓库 [udlrdotai/tickerdata](https://github.com/udlrdotai/tickerdata)，已显式选择公开 Pages 部署，目标维护入口为 <https://udlrdotai.github.io/tickerdata/>。是否部署成功及对应 commit 以仓库 Actions 和 Pages 状态为准。AI 在线生成、yfinance 抓取、网页内创建 PR 均不属于此版实现。
@@ -58,7 +60,7 @@ tests/                         # Node 内置测试、Python unittest
 dist/                          # 生成产物，忽略入库，禁止反向手工维护
 ```
 
-完整字段含义见 [数据模型](docs/data-model.md)。许可边界见 [许可说明](docs/licensing.md)。
+完整字段含义见 [数据模型 2.0.0](docs/data-model.md)。行业明细见 [FinanceDatabase 分类](docs/industry-classification.md)。许可边界见 [许可说明](docs/licensing.md)。
 
 ## 日常维护闭环
 
@@ -92,11 +94,32 @@ npm run validate
 
 最后通过你自己的 Git 客户端审阅并提交；导入器不会自动 commit、push 或声称已经发布。
 
+### 从 1.0.0 显式迁移
+
+三层行业使用严格的 `2.0.0` 协议，旧文件不能直接导入，也不能只修改 `schema_version`。使用原始 `1.0.0` 单证券、完整词表或维护包进行预览：
+
+```sh
+npm run migrate -- /path/to/legacy.json
+```
+
+确认前后差异后，使用本次输出的迁移哈希应用：
+
+```sh
+npm run migrate -- /path/to/legacy.json --apply --expect HASH_FROM_PREVIEW
+npm run validate
+```
+
+迁移器先验证原始旧格式及引用关系，再补上空的 `industry_groups`、可空的 `industry_group_id` 和新版本号；不推断行业组，不将旧 Yahoo ID 换成 FinanceDatabase。若本地仍是 1.0.0 数据，迁移会一并升级完整维护数据集，避免同一目录混用协议。在已升级的目录中导入旧文件，也会校验完整候选数据集；旧词表若会移除被现有证券引用的分类，会被拒绝。
+
+迁移哈希同时绑定当前源数据和本次输入内容，任一变化均需重新预览。已经是 2.0.0 的输入不能再次迁移。待审核记录不会自动通过，受影响的已审核记录及依赖它们的已审核关联记录转为需复核。应用复用本地多文件导入机制，不 commit、不发布、不改历史 release 或建议文件。
+
+旧建议使用保留的 `schemas/v1/` 结构检查，但仍保留原始版本和基准记录哈希，不适用于 2.0.0 源记录；需要重新生成或人工重新评估，不能通过修改哈希让旧建议自动生效。
+
 ### 主题维护
 
 主主题和辅助标签是不同词表，各自使用稳定 ID。显示名重命名不会改变 ID。词表名称及别名去空白、不区分大小写后不能冲突。
 
-删除已被引用的主题会失败；合并需改写所有引用、移除旧 ID，并将受影响证券降为待复核。暂时没有替代项时，不要删主题。标准行业是独立体系，不建立复杂多层树；可通过完整词表 JSON 维护 sector / industry，并由统一校验器检查引用。
+删除已被引用的主题会失败；合并需改写所有引用、移除旧 ID，并将受影响证券降为待复核。暂时没有替代项时，不要删主题。公司行业是独立体系，网页提供板块 / 行业组 / 行业联动选择及层级浏览，可通过完整词表 JSON 维护父子关系，并由统一校验器检查引用。行业字段变化不覆盖主主题，行业组不是新的主分组。
 
 ## GitHub / Pages 部署与可见性
 
@@ -151,6 +174,8 @@ CI 的 `--base-ref` 检查会阻止直接删除历史证券、悄悄替换内部
 | `manifest.json` | schema 版本、数据版本、源 commit、确定的生成时间，以及其余三文件的 SHA-256 / 字节数。 |
 
 三个数据文件都带相同 `schema_version` / `data_version`。数据版本是规范化源数据、schema、commit 与确定时间的 SHA-256；对象字段排序稳定，证券和顶层词表按 ID 排序。同一输入和构建来源产生相同字节。
+
+当前协议为 `2.0.0`，行业组字段贯通源记录、词表、维护包及正式产物。Python 消费者不静默接收旧协议；读取 `1.0.0` 历史快照时保留对应版本消费者，或先显式迁移旧维护源数据并重新发布。旧 release 的字节、哈希和历史建议基准不修改。
 
 `generated_at` 为 commit 时间（或明确指定的 `SOURCE_DATE_EPOCH`），不是随构建变化的当前时钟。哈希检查保证文件一致性，不等于对远端来源的密码学认证；应从受信任仓库和固定版本获取。
 

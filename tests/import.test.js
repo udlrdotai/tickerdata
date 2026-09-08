@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, cp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { prepareImport, applyImport } from '../scripts/import.js';
 import { loadDataset } from '../scripts/cli.js';
@@ -24,7 +23,7 @@ test('single record and vocabulary imports are validated without touching source
 });
 
 test('full bundle applies dependent vocabulary and record edits together and blocks stale preview', async () => {
-  const folder = await mkdtemp(resolve(tmpdir(), 'tickerdata-import-test-'));
+  const folder = await mkdtemp(resolve('.import-test-'));
   try {
     await cp(new URL('../data', import.meta.url), resolve(folder, 'data'), { recursive: true });
     const before = await loadDataset(folder);

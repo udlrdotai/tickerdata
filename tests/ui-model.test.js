@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { emptyInstrument } from '../src/model.js';
+import { SCHEMA_VERSION, emptyInstrument } from '../src/model.js';
 import { validateDataset, validateReviewTransitions } from '../src/validation.js';
-import { clone, matchesRecord, prepareRecord, references, applyVocabulary, mergeVocabulary, changedFiles, githubLinks, prepareImportedDataset, downgradeRelatedReviews } from '../web/editor-model.js';
+import { clone, matchesRecord, prepareRecord, references, applyVocabulary, mergeVocabulary, changedFiles, githubLinks, prepareImportedDataset, downgradeRelatedReviews, industryChoices, changeIndustrySelection } from '../web/editor-model.js';
 
 function fixture() {
   const record = emptyInstrument('ins-example');
@@ -16,15 +16,120 @@ function fixture() {
   record.review = { status: 'reviewed', reviewed_at: '2026-01-01T00:00:00.000Z', reviewer: 'Maintainer' };
   const label = (id, name_zh) => ({ id, name_zh, aliases: [], description: '' });
   return {
-    schema_version: '1.0.0',
+    schema_version: SCHEMA_VERSION,
     instruments: [record],
     vocabulary: {
-      schema_version: '1.0.0', industry_systems: [],
+      schema_version: SCHEMA_VERSION, industry_systems: [],
       themes: [label('theme-old', '旧主题'), label('theme-target', '目标主题')],
       tags: [label('tag-old', '旧标签'), label('tag-target', '目标标签')],
     },
   };
 }
+
+function hierarchyFixture() {
+  const dataset = fixture();
+  const label = (id) => ({ id, name_zh: id, aliases: [], description: '' });
+  dataset.vocabulary.industry_systems = [{
+    ...label('financedatabase'),
+    sectors: ['technology', 'financials'].map(label),
+    industry_groups: [
+      { ...label('software-services'), sector_id: 'technology' },
+      { ...label('hardware'), sector_id: 'technology' },
+      { ...label('banks'), sector_id: 'financials' },
+    ],
+    industries: [
+      { ...label('software'), sector_id: 'technology', industry_group_id: 'software-services' },
+      { ...label('it-services'), sector_id: 'technology', industry_group_id: 'software-services' },
+      { ...label('computers'), sector_id: 'technology', industry_group_id: 'hardware' },
+      { ...label('banking'), sector_id: 'financials', industry_group_id: 'banks' },
+    ],
+  }, {
+    ...label('yahoo'), sectors: [label('technology')], industry_groups: [],
+    industries: [{ ...label('software-infrastructure'), sector_id: 'technology', industry_group_id: null }],
+  }];
+  const record = dataset.instruments[0];
+  record.industry = { system_id: 'financedatabase', sector_id: 'technology', industry_group_id: 'software-services', industry_id: 'software', source_ids: ['manual'] };
+  record.classification.source_ids = ['manual'];
+  record.sources = [{ id: 'manual', kind: 'manual', label: 'Fixture rationale', url: null, accessed_at: null, fields: ['/classification', '/industry'] }];
+  return dataset;
+}
+
+test('hierarchy choices preserve valid initial values and filter by both ancestors', () => {
+  const dataset = hierarchyFixture();
+  const selection = dataset.instruments[0].industry;
+  const before = clone(selection);
+  const choices = industryChoices(dataset.vocabulary, selection);
+  assert.deepEqual(choices.industry_groups.map((item) => item.id), ['software-services', 'hardware']);
+  assert.deepEqual(choices.industries.map((item) => item.id), ['software', 'it-services']);
+  assert.deepEqual(selection, before);
+  assert.equal(industryChoices(dataset.vocabulary, emptyInstrument().industry).industries.length, 0);
+});
+
+test('hierarchy cascades clear only incompatible descendants and industry backfills known parents', () => {
+  const dataset = hierarchyFixture();
+  const original = dataset.instruments[0].industry;
+  const change = (selection, field, value) => changeIndustrySelection(dataset.vocabulary, selection, field, value);
+  assert.deepEqual(change(original, 'sector_id', 'technology'), original);
+  assert.deepEqual(change(original, 'industry_group_id', 'software-services'), original);
+  assert.equal(change(original, 'sector_id', '').industry_id, 'software');
+  assert.equal(change(original, 'industry_group_id', '').industry_id, 'software');
+  const sector = change(original, 'sector_id', 'financials');
+  assert.equal(sector.industry_group_id, null);
+  assert.equal(sector.industry_id, null);
+  const group = change(original, 'industry_group_id', 'banks');
+  assert.equal(group.sector_id, 'financials');
+  assert.equal(group.industry_id, null);
+  const industry = change({ ...original, sector_id: null, industry_group_id: null }, 'industry_id', 'banking');
+  assert.equal(industry.sector_id, 'financials');
+  assert.equal(industry.industry_group_id, 'banks');
+  assert.deepEqual(industry.source_ids, original.source_ids);
+  assert.equal(original.industry_id, 'software');
+  const legacy = change(original, 'system_id', 'yahoo');
+  assert.deepEqual(legacy, { system_id: 'yahoo', sector_id: null, industry_group_id: null, industry_id: null, source_ids: ['manual'] });
+  assert.deepEqual(industryChoices(dataset.vocabulary, legacy).industry_groups, []);
+  const yahoo = change(legacy, 'industry_id', 'software-infrastructure');
+  assert.equal(yahoo.sector_id, 'technology');
+  assert.equal(yahoo.industry_group_id, null);
+});
+
+test('partial hierarchies preserve unknown parents and use known group sector for filtering', () => {
+  const dataset = hierarchyFixture();
+  const system = dataset.vocabulary.industry_systems[1];
+  system.industry_groups.push({ id: 'group', name_zh: '组', aliases: [], description: '', sector_id: 'technology' });
+  system.industries.push({ id: 'partial', name_zh: '行业', aliases: [], description: '', sector_id: null, industry_group_id: 'group' });
+  const selection = { ...emptyInstrument().industry, system_id: 'yahoo' };
+  const next = changeIndustrySelection(dataset.vocabulary, selection, 'industry_id', 'partial');
+  assert.equal(next.sector_id, 'technology');
+  assert.equal(next.industry_group_id, 'group');
+  assert.equal(industryChoices(dataset.vocabulary, { ...next, sector_id: 'financials' }).industries.length, 0);
+  system.sectors.push({ id: 'financials', name_zh: '金融', aliases: [], description: '' });
+  system.industries.push({ id: 'finance', name_zh: '金融行业', aliases: [], description: '', sector_id: 'financials', industry_group_id: null });
+  const partial = { ...next, sector_id: null, industry_id: null };
+  assert.deepEqual(industryChoices(dataset.vocabulary, partial).industries.map((item) => item.id), ['software-infrastructure', 'partial']);
+  assert.equal(partial.sector_id, null);
+});
+
+test('industry group edits and vocabulary changes downgrade reviews without changing independent classification', () => {
+  const dataset = hierarchyFixture();
+  assert.deepEqual(validateDataset(dataset), []);
+  const record = dataset.instruments[0];
+  const edited = clone(record);
+  edited.industry = changeIndustrySelection(dataset.vocabulary, record.industry, 'industry_group_id', 'hardware');
+  assert.equal(prepareRecord(record, edited).review.status, 'needs_review');
+  assert.deepEqual(edited.classification, record.classification);
+  const vocabulary = clone(dataset.vocabulary);
+  vocabulary.industry_systems[0].industry_groups[0].description = 'Updated group meaning';
+  const next = applyVocabulary(dataset, vocabulary);
+  assert.equal(next.instruments[0].review.status, 'needs_review');
+  assert.deepEqual(next.instruments[0].industry, record.industry);
+  assert.deepEqual(validateDataset(next), []);
+  assert.deepEqual(validateReviewTransitions(dataset, next), []);
+  assert.deepEqual(prepareImportedDataset(dataset, JSON.parse(JSON.stringify(next))), next);
+  assert.deepEqual(changedFiles(dataset, next).map((file) => file.path), ['data/vocabulary.json', 'data/instruments/ins-example.json']);
+  const missingSource = clone(dataset);
+  missingSource.instruments[0].industry.source_ids = [];
+  assert.ok(validateDataset(missingSource).some((error) => error.includes('standard industry needs its own source')));
+});
 
 test('search includes ticker, names, provider aliases, historical symbols and MIC', () => {
   const record = fixture().instruments[0];

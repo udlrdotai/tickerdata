@@ -7,10 +7,11 @@
   "etf": null,
   "id": "ins-000008",
   "industry": {
-    "industry_id": null,
-    "sector_id": null,
-    "source_ids": [],
-    "system_id": null
+    "industry_group_id": "retailing",
+    "industry_id": "internet-direct-marketing-retail",
+    "sector_id": "consumer-discretionary",
+    "source_ids": ["financedatabase-equities"],
+    "system_id": "financedatabase"
   },
   "issuer": {
     "country": null,
@@ -28,9 +29,18 @@
     "reviewer": null,
     "status": "pending"
   },
-  "schema_version": "1.0.0",
+  "schema_version": "2.0.0",
   "security_type": "stock",
-  "sources": [],
+  "sources": [
+    {
+      "accessed_at": "2026-09-08T01:03:47Z",
+      "fields": ["/industry"],
+      "id": "financedatabase-equities",
+      "kind": "provider",
+      "label": "FinanceDatabase BABA (NYQ/XNYS) 原值：Consumer Discretionary → Retailing → Internet & Direct Marketing Retail。仅记录上游分类，待人工审核。",
+      "url": "https://github.com/JerBouma/FinanceDatabase/blob/ac05d03dbed851a6fd3905a2e92ee036d0397760/database/equities/NYQ.csv"
+    }
+  ],
   "symbol": {
     "aliases": [],
     "canonical": "BABA",

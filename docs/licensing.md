@@ -16,7 +16,9 @@
 
 yfinance 是开源软件，但它使用到的 Yahoo Finance 数据、业务简介、持仓、商标和分类内容受提供商及权利人的独立条款约束。**yfinance 开源不等于 Yahoo 数据可任意商用或再分发。** 使用前应核对当前条款、用途、司法辖区与所需授权；本项目不替用户判断某种用途一定合法。
 
-FinanceDatabase 的代码、仓库数据及其上游资料同样需分别核对，不能将其覆盖范围等同于使用许可。此 MVP 不复制其数据集，也不在线抓取 Yahoo。
+FinanceDatabase 的代码、仓库数据及其上游资料同样需分别核对，不能将其覆盖范围等同于使用许可。本项目采用其固定版本的有限分类标签、父子关系及现有 10 只股票的简短分类事实，不复制整份证券数据库、企业简介或子行业定义，也不在线抓取 Yahoo。英文标签保留原值；中文译名与简短说明由本项目编写。
+
+来源固定到提交 `ac05d03dbed851a6fd3905a2e92ee036d0397760`，详见 [行业分类与来源](industry-classification.md)。上游 README 明确称其为对 GICS 的宽松近似，并非 MSCI 官方付费分类数据；本项目同样不宣称持有官方 GICS 授权。上游 MIT 声明及署名保留如下，但不因此保证所有第三方上游资料或衍生数据库在任意用途下都可无限制再分发，也不改变本项目人工数据的许可边界。
 
 默认只保留人工所需的简短字段、原创理由、来源链接与获取时间，不公开完整外部业务简介、原始 API 响应、实时持仓或行业权重。必要缓存保持在忽略入库的本地目录，不能因为加了来源 URL 就认为整段再分发已获许可。
 
@@ -27,3 +29,31 @@ FinanceDatabase 的代码、仓库数据及其上游资料同样需分别核对�
 - [yfinance 项目说明](https://ranaroussi.github.io/yfinance/)
 - [Yahoo Terms](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html)
 - [FinanceDatabase](https://github.com/JerBouma/FinanceDatabase)
+
+## FinanceDatabase 署名与许可文本
+
+以下保留固定上游版本的 [LICENSE](https://github.com/JerBouma/FinanceDatabase/blob/ac05d03dbed851a6fd3905a2e92ee036d0397760/LICENSE)。本文件随静态站点输出为 `DATA_AND_EXTERNAL_TERMS.md`。
+
+```text
+MIT License
+
+Copyright (c) 2023 Jeroen Bouma
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

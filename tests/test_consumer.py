@@ -21,13 +21,14 @@ NEXT_VERSION = "b" * 64
 
 def record(identifier="ins-example", symbol="TEST", mic="XNAS"):
     return {
-        "schema_version": "1.0.0", "id": identifier,
+        "schema_version": "2.0.0", "id": identifier,
         "symbol": {"original": symbol, "canonical": symbol, "mic": mic,
                    "aliases": [], "history": []},
         "name": {"en": "Example security", "zh": None},
         "security_type": "stock", "issuer": {"id": None, "country": "TW"},
         "listing_status": "active",
-        "industry": {"system_id": None, "sector_id": None, "industry_id": None, "source_ids": []},
+        "industry": {"system_id": None, "sector_id": None, "industry_group_id": None,
+                     "industry_id": None, "source_ids": []},
         "classification": {"primary_theme_id": "cloud", "tag_ids": ["ai"], "source_ids": ["human"]},
         "etf": None, "related_instrument_ids": [], "notes": "",
         "sources": [{"id": "human", "kind": "manual", "label": "Reviewed primary business",
@@ -45,7 +46,9 @@ def vocabulary():
     return {"themes": [label("cloud", "云计算")], "tags": [label("ai", "AI")],
             "industry_systems": [
                 dict(label("standard", "标准"), sectors=[label("technology", "科技")],
-                     industries=[dict(label("software", "软件"), sector_id="technology")])
+                     industry_groups=[],
+                     industries=[dict(label("software", "软件"), sector_id="technology",
+                                      industry_group_id=None)])
             ]}
 
 
@@ -75,7 +78,7 @@ def entries(records):
 
 def bundle(records=None, version=VERSION):
     records = [record()] if records is None else records
-    envelope = {"schema_version": "1.0.0", "data_version": version}
+    envelope = {"schema_version": "2.0.0", "data_version": version}
     files = {
         "instruments.json": encode(dict(envelope, instruments=records)),
         "themes.json": encode(dict(envelope, **vocabulary())),
@@ -128,7 +131,7 @@ class ConsumerTests(unittest.TestCase):
         self.assertEqual(result["instrument"]["id"], "ins-example")
         self.assertEqual(result["instrument"]["issuer"]["country"], "TW")
         self.assertEqual(result["primary_theme"], vocabulary()["themes"][0])
-        self.assertEqual(snapshot.schema_version, "1.0.0")
+        self.assertEqual(snapshot.schema_version, "2.0.0")
         self.assertEqual(snapshot.data_version, VERSION)
         self.assertEqual(snapshot.source_commit, "c" * 40)
         self.assertEqual(snapshot.generated_at, "2026-09-01T00:00:00.000Z")
@@ -254,12 +257,12 @@ class ConsumerTests(unittest.TestCase):
 
     def test_industry_and_field_level_source_validation(self):
         item = record()
-        item["industry"] = {"system_id": "standard", "sector_id": "technology",
+        item["industry"] = {"system_id": "standard", "sector_id": "technology", "industry_group_id": None,
                             "industry_id": "software", "source_ids": ["human"]}
         item["sources"][0]["fields"].append("/industry")
         self.assertEqual(consumer.Snapshot(bundle([item])).lookup("TEST")["instrument"]["industry"],
                          item["industry"])
-        for key in ("system_id", "sector_id", "industry_id"):
+        for key in ("system_id", "sector_id", "industry_group_id", "industry_id"):
             broken = deepcopy(item)
             broken["industry"][key] = "missing"
             with self.subTest(key=key), self.assertRaises(consumer.SnapshotError):
@@ -324,7 +327,7 @@ class ConsumerTests(unittest.TestCase):
 
     def test_schema_and_data_version_mismatch_every_envelope(self):
         for name in ("manifest.json",) + consumer.DATA_FILES:
-            for field, new_value in (("schema_version", "2.0.0"), ("data_version", NEXT_VERSION)):
+            for field, new_value in (("schema_version", "1.0.0"), ("data_version", NEXT_VERSION)):
                 with self.subTest(file=name, field=field), self.assertRaises(consumer.SnapshotError):
                     consumer.Snapshot(change_payload(self.files, name,
                         lambda value: value.update({field: new_value})))
@@ -337,7 +340,7 @@ class ConsumerTests(unittest.TestCase):
             lambda item: item.pop("name"),
             lambda item: item.update({"extra": 1}),
             lambda item: item.update({"id": "TEST"}),
-            lambda item: item.update({"schema_version": "2.0.0"}),
+            lambda item: item.update({"schema_version": "1.0.0"}),
             lambda item: item["review"].update({"status": "pending"}),
             lambda item: item["review"].update({"reviewer": None}),
             lambda item: item["review"].update({"reviewed_at": "2026-02-30T00:00:00Z"}),
