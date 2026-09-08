@@ -117,6 +117,73 @@ test('current built maintenance source loads and exports without assuming sample
   }
 });
 
+test('record utility links and normalization share a compact responsive action row', async (t) => {
+  const page = await pageForTest(t);
+  await page.getByRole('button', { name: /^BRK.B ·/ }).click();
+  const actions = page.getByRole('group', { name: '证券操作', exact: true });
+  const normalize = actions.getByRole('button', { name: '由原始代码填入规范代码', exact: true });
+  assert.equal(await actions.getByRole('link').count(), 3);
+  assert.equal(await normalize.getAttribute('type'), 'button');
+  assert.equal(await page.locator('form').getByRole('button', { name: '由原始代码填入规范代码', exact: true }).count(), 0);
+  for (const [index, label] of ['源文件', '在 GitHub 编辑', '提交历史'].entries()) {
+    const link = actions.getByRole('link', { name: label, exact: true });
+    assert.equal(await link.getAttribute('target'), '_blank');
+    assert.equal(await link.getAttribute('rel'), 'noopener noreferrer');
+    assert.ok((await link.getAttribute('href')).endsWith('data/instruments/ins-000010.json'));
+    await link.focus();
+    await page.keyboard.press('Tab');
+    assert.equal(await actions.locator('a, button').nth(index + 1).evaluate((item) => item === document.activeElement), true);
+  }
+  const layout = await actions.locator('a, button').evaluateAll((items) => items.map((item) => {
+    const rect = item.getBoundingClientRect();
+    const style = getComputedStyle(item);
+    return { top: rect.top, height: rect.height, fontSize: style.fontSize, padding: style.padding, border: style.border, background: style.backgroundColor };
+  }));
+  assert.equal(layout.length, 4);
+  for (const item of layout) assert.deepEqual(item, layout[0]);
+  assert.ok(layout[0].height <= 40);
+  assert.equal(await page.getByLabel('规范代码', { exact: true }).inputValue(), 'BRK.B');
+  await page.keyboard.press('Enter');
+  assert.equal(await page.getByLabel('规范代码', { exact: true }).inputValue(), 'BRK-B');
+  assert.match(await page.locator('#form-state').textContent(), /未保存修改/);
+  await page.getByLabel('原始代码', { exact: true }).fill('  brk-b  ');
+  await normalize.click();
+  assert.equal(await page.getByLabel('规范代码', { exact: true }).inputValue(), 'BRK-B');
+  assert.equal(await page.locator('#messages').textContent(), '');
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    const bounds = await actions.locator('a, button').evaluateAll((items) => items.map((item) => {
+      const rect = item.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, fits: item.scrollWidth <= item.clientWidth };
+    }));
+    assert.ok(bounds.every((item) => item.left >= 0 && item.right <= width && item.fits), JSON.stringify(bounds));
+    assert.equal(await actions.evaluate((item) => item.scrollWidth <= item.clientWidth), true);
+    assert.ok(await normalize.isVisible());
+    assert.equal(await actions.evaluate((item) => getComputedStyle(item).flexWrap), 'wrap');
+  }
+});
+
+test('normalization remains available for new records and unconfigured GitHub links', async (t) => {
+  const page = await pageForTest(t);
+  await page.getByRole('button', { name: '＋ 新增证券', exact: true }).click();
+  let actions = page.getByRole('group', { name: '证券操作', exact: true });
+  assert.equal(await actions.getByRole('link').count(), 1);
+  await page.getByLabel('原始代码', { exact: true }).fill(' new.test ');
+  await actions.getByRole('button', { name: '由原始代码填入规范代码', exact: true }).click();
+  assert.equal(await page.getByLabel('规范代码', { exact: true }).inputValue(), 'NEW.TEST');
+  await page.route(`${origin}/site-config.json`, (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ repository_url: null, branch: 'main', pages_enabled: false }),
+  }));
+  await page.reload();
+  await page.getByRole('button', { name: /^CRWV ·/ }).click();
+  actions = page.getByRole('group', { name: '证券操作', exact: true });
+  assert.equal(await actions.getByRole('link').count(), 0);
+  await actions.getByRole('button', { name: '由原始代码填入规范代码', exact: true }).click();
+  assert.equal(await page.getByLabel('规范代码', { exact: true }).inputValue(), 'CRWV');
+  assert.match(await page.locator('#form-state').textContent(), /未保存修改/);
+});
+
 test('records already reviewed at startup downgrade on edit unless explicitly re-reviewed', async (t) => {
   for (const explicit of [false, true]) {
     await t.test(explicit ? 'explicit re-review' : 'ordinary edit', async (subtest) => {
