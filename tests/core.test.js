@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { emptyInstrument, emptyEtf, stableStringify, SCHEMA_VERSION } from '../src/model.js';
 import { validateDataset, validateReviewTransitions, validateSuggestion, symbolEntries } from '../src/validation.js';
 import { createRelease, sha256, recordHash } from '../src/release.js';
-import { loadDataset } from '../scripts/cli.js';
 import { createDatasetFixture } from './fixtures/dataset.js';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { writeLatestRelease } from '../scripts/cli.js';
 
 const vocabulary = createDatasetFixture().vocabulary;
 
@@ -13,7 +15,7 @@ function record(id = 'ins-test', symbol = 'TEST', mic = 'XNAS') {
   Object.assign(value.symbol, { original: symbol, canonical: symbol, mic });
   value.listing_status = 'active';
   value.name.en = 'Test security';
-  value.classification = { primary_theme_id: 'semiconductor-ai', tag_ids: ['ai'], source_ids: ['human'] };
+  value.classification = { tag_ids: ['ai', 'semiconductor-ai'], source_ids: ['human'] };
   value.sources = [{ id: 'human', kind: 'manual', label: 'Human judgment from reviewed reference materials.', url: null, accessed_at: null, fields: ['/classification'] }];
   value.review = { status: 'reviewed', reviewed_at: '2026-09-01T00:00:00Z', reviewer: 'Example reviewer' };
   return value;
@@ -29,8 +31,9 @@ function expectInvalid(change, pattern) {
   assert.match(validateDataset(value).join('\n'), pattern);
 }
 
-test('maintained source is valid and publishes exactly its currently reviewed records', async () => {
-  const value = await loadDataset();
+test('publication includes exactly the reviewed fixture records', () => {
+  const value = dataset([record(), record('ins-pending', 'PENDING')]);
+  value.instruments[1].review.status = 'pending';
   assert.deepEqual(validateDataset(value), []);
   const release = createRelease(value);
   const expected = value.instruments.filter((item) => item.review.status === 'reviewed')
@@ -53,9 +56,9 @@ test('independent sample fixtures preserve pending defaults, aliases and share-c
   assert.notEqual(goog.id, googl.id);
   assert.equal(goog.issuer.id, googl.issuer.id);
   value.instruments[0].review.status = 'needs_review';
-  value.vocabulary.themes[0].name_zh = 'Changed only in this test';
+  value.vocabulary.tags[0].name_zh = 'Changed only in this test';
   assert.equal(createDatasetFixture().instruments[0].review.status, 'pending');
-  assert.notEqual(createDatasetFixture().vocabulary.themes[0].name_zh, value.vocabulary.themes[0].name_zh);
+  assert.notEqual(createDatasetFixture().vocabulary.tags[0].name_zh, value.vocabulary.tags[0].name_zh);
 });
 
 test('strict schema rejects malformed imports, unexpected properties and invalid dates', () => {
@@ -104,17 +107,20 @@ test('provider aliases do not rewrite punctuation or become unscoped original ti
   assert.ok(symbolEntries(hongKong).every((entry) => entry.symbol === '0700.HK'));
 });
 
-test('one primary theme, multiple unique tags and stable vocabulary IDs', () => {
+test('optional multiple unique tags and stable vocabulary IDs, with no primary theme', () => {
   const value = dataset();
   value.instruments[0].classification.tag_ids = ['ai', 'digital-assets'];
   assert.deepEqual(validateDataset(value), []);
-  value.vocabulary.themes.find((theme) => theme.id === 'semiconductor-ai').name_zh = '新显示名称';
+  value.vocabulary.tags.find((tag) => tag.id === 'semiconductor-ai').name_zh = '新显示名称';
   assert.deepEqual(validateDataset(value), []);
-  expectInvalid((data) => { data.instruments[0].classification.primary_theme_id = ['semiconductor-ai']; }, /string/);
+  expectInvalid((data) => { data.instruments[0].classification.primary_theme_id = 'semiconductor-ai'; }, /additional properties/);
   expectInvalid((data) => { data.instruments[0].classification.tag_ids = ['ai', 'ai']; }, /duplicate items/);
   expectInvalid((data) => { data.instruments[0].classification.tag_ids = ['unknown']; }, /unknown tag/);
-  expectInvalid((data) => { data.vocabulary.themes = []; }, /unknown primary theme/);
-  expectInvalid((data) => { data.vocabulary.themes.push({ id: 'same-name', name_zh: 'AI云算力', description: '', aliases: [] }); }, /duplicate name\/alias/);
+  expectInvalid((data) => { data.vocabulary.themes = []; }, /additional properties/);
+  expectInvalid((data) => { data.vocabulary.tags.push({ id: 'same-name', name_zh: 'AI云算力', description: '', aliases: [] }); }, /duplicate name\/alias/);
+  value.instruments[0].classification = { tag_ids: [], source_ids: [] };
+  assert.deepEqual(validateDataset(value), []);
+  assert.equal(JSON.parse(createRelease(value).files['instruments.json']).instruments.length, 1);
 });
 
 test('industry taxonomy and field-level sources are independently validated', () => {
@@ -127,6 +133,8 @@ test('industry taxonomy and field-level sources are independently validated', ()
   value.instruments[0].industry.industry_id = 'missing';
   assert.match(validateDataset(value).join('\n'), /unknown industry/);
   expectInvalid((data) => { data.instruments[0].classification.source_ids = []; }, /classification needs/);
+  expectInvalid((data) => { data.instruments[0].classification.source_ids = ['missing']; }, /unknown source/);
+  expectInvalid((data) => { data.instruments[0].sources[0].fields = ['/industry']; }, /does not cover this field/);
 });
 
 function hierarchyDataset() {
@@ -237,7 +245,6 @@ test('ETF has no company industry, needs no holdings, and may have unknown attri
 
 test('review requires explicit human metadata and is invalidated by changes', () => {
   expectInvalid((data) => { data.instruments[0].review.reviewer = null; }, /review time and reviewer/);
-  expectInvalid((data) => { data.instruments[0].classification.primary_theme_id = null; }, /reviewed record needs a primary theme/);
   const before = dataset();
   const after = structuredClone(before);
   after.instruments[0].name.en = 'New company name, same security';
@@ -271,6 +278,9 @@ test('export and import round trip; release bytes and all file versions are dete
   const second = createRelease(JSON.parse(stableStringify(value)));
   assert.deepEqual(first, second);
   assert.deepEqual(first, createRelease({ ...value, instruments: [...value.instruments].reverse() }));
+  assert.deepEqual(Object.keys(first.manifest.files).sort(), ['instruments.json', 'symbol-index.json', 'vocabulary.json']);
+  assert.equal(first.files['themes.json'], undefined);
+  assert.deepEqual(Object.keys(JSON.parse(first.files['vocabulary.json'])).sort(), ['data_version', 'industry_systems', 'schema_version', 'tags']);
   for (const [name, info] of Object.entries(first.manifest.files)) {
     assert.equal(sha256(first.files[name]), info.sha256);
     assert.equal(Buffer.byteLength(first.files[name]), info.bytes);
@@ -290,6 +300,27 @@ test('pending and needs_review records never enter official data or index', () =
   assert.ok(JSON.parse(release.files['symbol-index.json']).entries.every((item) => item.instrument_id === 'ins-test'));
 });
 
+test('rebuilding latest removes only obsolete current themes, not historical snapshots', async () => {
+  const folder = await mkdtemp(resolve('.release-test-'));
+  try {
+    await mkdir(resolve(folder, 'latest'), { recursive: true });
+    await mkdir(resolve(folder, 'releases/historical'), { recursive: true });
+    await writeFile(resolve(folder, 'latest/themes.json'), 'obsolete');
+    await writeFile(resolve(folder, 'latest/unrelated.txt'), 'keep');
+    await writeFile(resolve(folder, 'releases/historical/themes.json'), 'historical bytes');
+    const release = createRelease(dataset());
+    await writeLatestRelease(folder, release);
+    await assert.rejects(readFile(resolve(folder, 'latest/themes.json')), { code: 'ENOENT' });
+    assert.equal(await readFile(resolve(folder, 'latest/unrelated.txt'), 'utf8'), 'keep');
+    assert.equal(await readFile(resolve(folder, 'releases/historical/themes.json'), 'utf8'), 'historical bytes');
+    for (const [name, content] of Object.entries(release.files)) {
+      assert.equal(await readFile(resolve(folder, 'latest', name), 'utf8'), content);
+    }
+  } finally {
+    await rm(folder, { recursive: true });
+  }
+});
+
 test('suggestions cannot mutate authority; existing IDs, stale bases and decisions are checked', () => {
   const value = dataset();
   const before = stableStringify(value);
@@ -297,16 +328,41 @@ test('suggestions cannot mutate authority; existing IDs, stale bases and decisio
     schema_version: SCHEMA_VERSION, id: 'suggestion-example', instrument_id: 'ins-test',
     base_record_sha256: recordHash(value.instruments[0]), generated_at: '2026-09-01T00:00:00Z', generator: 'manual-test',
     facts: [], inferences: ['A hypothesis, not a confirmed fact'], missing: ['Independent source verification'],
-    proposed: [{ field: '/classification/primary_theme_id', value: 'ai-cloud', reason: 'Human must assess this reasoning.' }],
-    new_theme_proposals: [], decisions: [{ proposal_index: 0, decision: 'accepted', reviewer: 'Human', decided_at: '2026-09-02T00:00:00Z', note: 'Still requires a separate source edit.' }],
+    proposed: [{ field: '/classification/tag_ids', value: ['ai-cloud'], reason: 'Human must assess this reasoning.' }],
+    new_tag_proposals: [], decisions: [{ proposal_index: 0, decision: 'accepted', reviewer: 'Human', decided_at: '2026-09-02T00:00:00Z', note: 'Still requires a separate source edit.' }],
   };
   assert.deepEqual(validateSuggestion(suggestion, value, recordHash), []);
   assert.equal(stableStringify(value), before);
-  assert.equal(JSON.parse(createRelease(value).files['instruments.json']).instruments[0].classification.primary_theme_id, 'semiconductor-ai');
-  suggestion.proposed[0].value = 'invented-new-id';
-  assert.match(validateSuggestion(suggestion, value, recordHash).join('\n'), /existing ID/);
+  assert.deepEqual(JSON.parse(createRelease(value).files['instruments.json']).instruments[0].classification.tag_ids, ['ai', 'semiconductor-ai']);
+  suggestion.proposed[0].value = ['invented-new-id'];
+  assert.match(validateSuggestion(suggestion, value, recordHash).join('\n'), /existing tag IDs/);
   suggestion.base_record_sha256 = '0'.repeat(64);
   assert.match(validateSuggestion(suggestion, value, recordHash).join('\n'), /stale base/);
   suggestion.decisions[0].proposal_index = 9;
   assert.match(validateSuggestion(suggestion, value).join('\n'), /decision index/);
+});
+
+test('v3 suggestions accept only tag arrays and isolated new tag proposals', () => {
+  const value = dataset();
+  const suggestion = {
+    schema_version: '3.0.0', id: 'suggestion-tags', instrument_id: 'ins-test',
+    base_record_sha256: recordHash(value.instruments[0]), generated_at: '2026-09-01T00:00:00Z',
+    generator: 'test', facts: [], inferences: [], missing: [], decisions: [],
+    proposed: [{ field: '/classification/tag_ids', value: [], reason: 'Explicitly remove tags' }],
+    new_tag_proposals: [{ id: 'new-tag', name_zh: '新标签', aliases: [], description: 'Unapproved proposal' }],
+  };
+  assert.deepEqual(validateSuggestion(suggestion, value, recordHash), []);
+  for (const mutation of [
+    (item) => { item.proposed[0].value = null; },
+    (item) => { item.proposed[0].value = 'ai'; },
+    (item) => { item.proposed[0].value = ['ai', 'ai']; },
+    (item) => { item.proposed[0].field = '/classification/primary_theme_id'; },
+    (item) => { item.new_theme_proposals = []; },
+    (item) => { item.proposed[0].value = ['new-tag']; },
+    (item) => { item.new_tag_proposals.push(structuredClone(value.vocabulary.tags[0])); },
+  ]) {
+    const invalid = structuredClone(suggestion);
+    mutation(invalid);
+    assert.ok(validateSuggestion(invalid, value, recordHash).length);
+  }
 });

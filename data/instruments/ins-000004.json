@@ -1,6 +1,5 @@
 {
   "classification": {
-    "primary_theme_id": null,
     "source_ids": [],
     "tag_ids": []
   },
@@ -29,7 +28,7 @@
     "reviewer": null,
     "status": "pending"
   },
-  "schema_version": "2.0.0",
+  "schema_version": "3.0.0",
   "security_type": "stock",
   "sources": [
     {

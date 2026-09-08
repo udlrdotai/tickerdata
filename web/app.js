@@ -1,12 +1,12 @@
 import { validateDataset, validateReviewTransitions } from '../src/validation.js';
 import { SCHEMA_VERSION, emptyInstrument, emptyEtf, stableStringify, normalizeSymbol } from '../src/model.js';
-import { clone, matchesRecord, prepareRecord, references, applyVocabulary, mergeVocabulary, changedFiles, githubLinks, prepareImportedDataset, downgradeRelatedReviews, industryChoices, changeIndustrySelection } from './editor-model.js';
+import { clone, matchesRecord, prepareRecord, references, applyVocabulary, mergeVocabulary, changedFiles, githubLinks, prepareImportedDataset, assertCurrentImportVersion, downgradeRelatedReviews, industryChoices, changeIndustrySelection } from './editor-model.js';
 
 const app = document.querySelector('#app');
 const state = {
   initial: null, dataset: null, config: null, mode: 'records', selected: null,
-  vocabKind: 'themes', vocabId: null, dirty: false,
-  filters: { query: '', type: '', theme: '', tag: '', review: '' },
+  vocabKind: 'tags', vocabId: null, dirty: false,
+  filters: { query: '', type: '', tag: '', review: '' },
   exported: new Map(),
 };
 const reviewNames = { pending: '待审核', needs_review: '需复核', reviewed: '已人工审核' };
@@ -242,7 +242,7 @@ function render() {
   app.append(node('p', `已加载源数据：${state.dataset.instruments.length} 条（不代表全部已审核）。实际发布状态：本页未核验；已审核不等于已发布。Pages 配置：${state.config?.pages_enabled ? '已启用' : '未启用或未配置'}。`, 'status-line'));
   const toolbar = node('nav', null, 'toolbar');
   toolbar.setAttribute('aria-label', '维护功能');
-  for (const [mode, title] of [['records', '证券记录'], ['vocabulary', '主题 / 标签 / 行业词表']]) {
+  for (const [mode, title] of [['records', '证券记录'], ['vocabulary', '标签 / 行业词表']]) {
     const tab = button(title, () => navigate(() => { state.mode = mode; }));
     tab.setAttribute('aria-pressed', String(state.mode === mode));
     toolbar.append(tab);
@@ -292,6 +292,7 @@ function render() {
 
 function importValue(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('JSON 顶层必须是单条证券、完整词表或完整维护包对象。');
+  assertCurrentImportVersion(value);
   let candidate = clone(state.dataset);
   if ('instruments' in value) {
     candidate = prepareImportedDataset(state.dataset, value);
@@ -331,7 +332,6 @@ function renderRecordSidebar(parent) {
   field(filters, '搜索', search);
   const choices = [
     ['type', '证券类型', enumItems(Object.keys(typeNames), typeNames)],
-    ['theme', '主主题', [{ id: '__none', name_zh: '未分类' }, ...state.dataset.vocabulary.themes]],
     ['tag', '标签', state.dataset.vocabulary.tags],
     ['review', '审核状态', enumItems(Object.keys(reviewNames), reviewNames)],
   ];
@@ -361,7 +361,6 @@ function renderRecordList() {
     choose.append(node('strong', `${record.symbol.canonical} · ${record.symbol.mic ?? 'MIC 未填写'}`), node('small', record.name.zh || record.name.en || '名称待补充'));
     const badges = node('span', null, 'badges');
     badges.append(node('span', typeNames[record.security_type], 'badge'), node('span', reviewNames[record.review.status], `badge ${record.review.status}`));
-    if (!record.classification.primary_theme_id) badges.append(node('span', '未分类', 'badge pending'));
     if (changed.has(`data/instruments/${record.id}.json`)) badges.append(node('span', '内存草稿', 'badge draft'));
     choose.append(badges);
     item.append(choose);
@@ -425,7 +424,7 @@ function renderRecord(record) {
   bind(identity, '相关证券内部 ID', 'related_instrument_ids', '逗号或换行分隔；必须引用已有记录，不得引用自身。', 'ids');
 
   if (working.security_type !== 'etf') {
-    const industry = section(form, '2 · 标准行业分类（与主题独立）');
+    const industry = section(form, '2 · 标准行业分类（与标签独立）');
     const vocabulary = state.dataset.vocabulary;
     const systems = [...vocabulary.industry_systems].sort((a, b) =>
       Number(b.id === 'financedatabase') - Number(a.id === 'financedatabase'));
@@ -456,11 +455,10 @@ function renderRecord(record) {
     }
     refresh();
     bind(industry, '行业来源 ID', 'industry.source_ids', sourceHint, 'ids');
-  } else form.append(node('p', 'ETF 不使用公司板块 / 行业；请在 ETF 属性中描述敞口，并独立选择交易主题。', 'notice'));
+  } else form.append(node('p', 'ETF 不使用公司板块 / 行业；请在 ETF 属性中描述敞口，并按需独立选择标签。', 'notice'));
 
-  const classification = section(form, '3 · 主主题与标签');
-  bind(classification, '主主题（单选）', 'classification.primary_theme_id', '未知可留空；待确认内容不要直接标为已审核。', 'select', state.dataset.vocabulary.themes);
-  bind(classification, '标签（多选）', 'classification.tag_ids', '按住 Ctrl / Command 可多选、取消选择；触屏使用系统多选控件。', 'multi', state.dataset.vocabulary.tags);
+  const classification = section(form, '3 · 标签（可选）');
+  bind(classification, '标签（多选）', 'classification.tag_ids', '可不选标签，已审核记录也可留空。选择标签时须提供 /classification 来源。按住 Ctrl / Command 可多选、取消选择；触屏使用系统多选控件。', 'multi', state.dataset.vocabulary.tags);
   const classificationSources = bind(classification, '分类来源 ID', 'classification.source_ids', sourceHint, 'ids');
 
   if (working.security_type === 'etf') {
@@ -512,7 +510,7 @@ function renderRecord(record) {
     markDirty();
   });
   const explicitLabel = node('label', null, 'checkbox');
-  explicitLabel.append(explicit, node('span', '我已人工核验当前内容，明确标为已审核 / 重新审核，并更新审核时间。需英文名称、MIC、主主题、审核人及分类依据；标准行业可留空。'));
+  explicitLabel.append(explicit, node('span', '我已人工核验当前内容，明确标为已审核 / 重新审核，并更新审核时间。需英文名称、MIC 及审核人；标准行业与标签均可留空，填写时须有对应来源依据。'));
   form.append(explicitLabel);
   readRecord = () => {
     const next = clone(working);
@@ -609,7 +607,7 @@ function renderIndustryTree(parent, system) {
 function renderVocabulary(sidebar) {
   sidebar.append(node('h2', '词表维护'));
   const tabs = node('div', null, 'actions');
-  for (const [kind, label] of [['themes', '主主题'], ['tags', '标签'], ['industry_systems', '行业体系']]) {
+  for (const [kind, label] of [['tags', '标签'], ['industry_systems', '行业体系']]) {
     const tab = button(label, () => navigate(() => { state.vocabKind = kind; state.vocabId = null; }));
     tab.setAttribute('aria-pressed', String(state.vocabKind === kind));
     tabs.append(tab);
@@ -628,14 +626,14 @@ function renderVocabulary(sidebar) {
   }
   sidebar.append(items);
   sidebar.append(button('＋ 新增词条', () => navigate(() => { state.vocabId = '__new'; }), 'primary'));
-  detail.append(node('h2', '主题、标签与标准行业词表'));
-  detail.append(node('p', '重命名只修改显示名称，不更换稳定 ID。被引用的词条不可直接删除；主题 / 标签可显式合并 ID。词义、描述或别名变更会将引用记录标为需复核；依赖这些证券的已审核关联记录也将递归转为需复核，并全部列入变更清单。行业子项在高级 JSON 中维护，所有引用同样参与校验。', 'notice'));
+  detail.append(node('h2', '标签与标准行业词表'));
+  detail.append(node('p', '重命名只修改显示名称，不更换稳定 ID。被引用的词条不可直接删除；标签可显式合并 ID。词义、描述或别名变更会将引用记录标为需复核；依赖这些证券的已审核关联记录也将递归转为需复核，并全部列入变更清单。行业子项在高级 JSON 中维护，所有引用同样参与校验。', 'notice'));
   const formState = node('p', '词表修改同样只保存为内存草稿。', 'warning');
   formState.id = 'form-state';
   detail.append(formState);
   links(detail, 'data/vocabulary.json');
   const label = labels.find((item) => item.id === state.vocabId) ?? (state.vocabId === '__new'
-    ? { id: `${kind === 'themes' ? 'theme' : kind === 'tags' ? 'tag' : 'system'}-${crypto.randomUUID()}`, name_zh: '', description: '', aliases: [], ...(kind === 'industry_systems' ? { sectors: [], industry_groups: [], industries: [] } : {}) }
+    ? { id: `${kind === 'tags' ? 'tag' : 'system'}-${crypto.randomUUID()}`, name_zh: '', description: '', aliases: [], ...(kind === 'industry_systems' ? { sectors: [], industry_groups: [], industries: [] } : {}) }
     : null);
   if (label) {
     if (kind === 'industry_systems') renderIndustryTree(detail, label);
@@ -718,7 +716,7 @@ function renderLabelForm(parent, kind, label, exists) {
       vocabulary[kind] = vocabulary[kind].filter((item) => item.id !== label.id);
       saveVocabulary(vocabulary);
     }, 'danger'));
-    if (kind === 'themes' || kind === 'tags') {
+    if (kind === 'tags') {
       const mergeBox = node('fieldset');
       mergeBox.append(node('legend', '合并 ID（原子变更）'));
       const target = node('select');
@@ -752,6 +750,7 @@ async function start() {
   const responses = await Promise.all([fetch('./source-data.json'), fetch('./site-config.json')]);
   for (const response of responses) if (!response.ok) throw new Error(`无法加载本地文件：${response.url}（HTTP ${response.status}）`);
   const [dataset, config] = await Promise.all(responses.map((response) => response.json()));
+  assertCurrentImportVersion(dataset);
   const errors = validateDataset(dataset);
   if (errors.length) throw new Error(`源数据校验失败，请修复仓库后重新构建：\n${errors.join('\n')}`);
   state.initial = clone(dataset);

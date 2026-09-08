@@ -24,8 +24,8 @@ import urllib.request
 import warnings
 
 
-SCHEMA_VERSION = "2.0.0"
-DATA_FILES = ("instruments.json", "themes.json", "symbol-index.json")
+SCHEMA_VERSION = "3.0.0"
+DATA_FILES = ("instruments.json", "vocabulary.json", "symbol-index.json")
 VERSION_RE = re.compile(r"[a-f0-9]{64}")
 ID_RE = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
 RECORD_ID_RE = re.compile(r"ins-[a-z0-9]+(?:-[a-z0-9]+)*")
@@ -145,12 +145,16 @@ def _expected_version(value):
              "Expected version must be 64 lowercase hexadecimal characters")
 
 
+def _schema_version(value, where):
+    _require(value == SCHEMA_VERSION,
+             "{}: unsupported schema_version; use a matching historical consumer or "
+             "explicitly migrate maintenance source data and publish a new release".format(where))
+
+
 def _manifest(raw, expected_data_version):
     value = _parse(raw, "manifest.json")
     _object(value, "schema_version data_version source_commit generated_at files", "manifest")
-    _require(value["schema_version"] == SCHEMA_VERSION,
-             "Unsupported manifest schema_version: use a matching historical consumer or "
-             "explicitly migrate maintenance source data and publish a new release")
+    _schema_version(value["schema_version"], "manifest")
     _expected_version(value["data_version"])
     _require(value["data_version"] is not None, "Manifest data_version is required")
     _require(expected_data_version is None or value["data_version"] == expected_data_version,
@@ -190,7 +194,6 @@ def _labels(items, where, extra=""):
 
 
 def _vocabulary(value):
-    themes = _labels(value["themes"], "themes")
     tags = _labels(value["tags"], "tags")
     systems = _labels(value["industry_systems"], "industry_systems", "sectors industry_groups industries")
     for system in systems.values():
@@ -213,13 +216,13 @@ def _vocabulary(value):
             _require(system["id"] != "financedatabase" or
                      industry["sector_id"] is not None and industry["industry_group_id"] is not None,
                      "FinanceDatabase industry requires sector and industry group parents")
-    return themes, tags, systems
+    return tags, systems
 
 
-def _record(value, themes, tags, systems):
+def _record(value, tags, systems):
     _object(value, "schema_version id symbol name security_type issuer listing_status "
             "industry classification etf related_instrument_ids notes sources review", "instrument")
-    _require(value["schema_version"] == SCHEMA_VERSION, "Unsupported instrument schema_version")
+    _schema_version(value["schema_version"], "instrument")
     _identifier(value["id"], "instrument.id", record=True)
     _choice(value["security_type"], ("stock", "etf", "other"), "security_type")
     _choice(value["listing_status"], ("active", "inactive", "unknown"), "listing_status")
@@ -305,14 +308,13 @@ def _record(value, themes, tags, systems):
     _require(not parent_group or industry["sector_id"] is None or
              parent_group["sector_id"] == industry["sector_id"], "Industry parent group/sector mismatch")
 
-    classification = _object(value["classification"], "primary_theme_id tag_ids source_ids",
+    classification = _object(value["classification"], "tag_ids source_ids",
                              "classification")
-    _identifier(classification["primary_theme_id"], "primary_theme_id")
-    _require(classification["primary_theme_id"] in themes, "Missing primary theme")
     _ids(classification["tag_ids"], "classification.tag_ids")
     _require(all(item in tags for item in classification["tag_ids"]), "Unknown tag")
     _ids(classification["source_ids"], "classification.source_ids")
-    _require(bool(classification["source_ids"]), "Reviewed classification needs source")
+    _require(not classification["tag_ids"] or bool(classification["source_ids"]),
+             "Classification tags need source")
     _ids(industry["source_ids"], "industry.source_ids")
     _require(not any(industry[key] is not None for key in hierarchy)
              or bool(industry["source_ids"]), "Industry needs source")
@@ -378,8 +380,10 @@ class Snapshot:
 
     def __init__(self, files, expected_data_version=None):
         _expected_version(expected_data_version)
-        _object(files, "manifest.json " + " ".join(DATA_FILES), "snapshot files")
+        _require(isinstance(files, dict) and "manifest.json" in files,
+                 "snapshot files: manifest.json is required")
         self._manifest = _manifest(files["manifest.json"], expected_data_version)
+        _object(files, "manifest.json " + " ".join(DATA_FILES), "snapshot files")
         self.data_version = self._manifest["data_version"]
         self.schema_version = SCHEMA_VERSION
         self.source_commit = self._manifest["source_commit"]
@@ -395,18 +399,18 @@ class Snapshot:
             _require(hashlib.sha256(raw).hexdigest() == info["sha256"],
                      "{}: SHA-256 mismatch".format(name))
             payload = _parse(raw, name)
-            fields = {"instruments.json": "instruments", "themes.json": "themes tags industry_systems",
+            fields = {"instruments.json": "instruments", "vocabulary.json": "tags industry_systems",
                       "symbol-index.json": "entries"}[name]
             _object(payload, "schema_version data_version " + fields, name)
-            _require(payload["schema_version"] == SCHEMA_VERSION, "{}: schema_version mismatch".format(name))
+            _schema_version(payload["schema_version"], name)
             _require(payload["data_version"] == self.data_version, "{}: data_version mismatch".format(name))
             payloads[name] = payload
-        self._themes, tags, systems = _vocabulary(payloads["themes.json"])
+        self._tags, systems = _vocabulary(payloads["vocabulary.json"])
         self._records = {}
         expected = Counter()
         identifiers = {}
         for record in _array(payloads["instruments.json"]["instruments"], "instruments", unique=False):
-            _record(record, self._themes, tags, systems)
+            _record(record, self._tags, systems)
             _require(record["id"] not in self._records, "Duplicate instrument ID")
             self._records[record["id"]] = record
             for entry in _record_entries(record):
@@ -441,7 +445,7 @@ class Snapshot:
         self._files = dict(files)
 
     def lookup(self, symbol, mic=None, provider=None, include_inactive=True):
-        """Return {instrument, primary_theme}; never rewrite dots or hyphens.
+        """Return {instrument, tags}; never rewrite dots or hyphens.
 
         No provider admits every provider alias; an explicit provider admits its
         own aliases plus unscoped symbols. active-only means listing_status=active.
@@ -476,8 +480,8 @@ class Snapshot:
                 for key in sorted(candidates)
             ])
         record = next(iter(candidates.values()))
-        theme_id = record["classification"]["primary_theme_id"]
-        return deepcopy({"instrument": record, "primary_theme": self._themes[theme_id]})
+        return deepcopy({"instrument": record, "tags": [
+            self._tags[tag_id] for tag_id in record["classification"]["tag_ids"]]})
 
 
 def load_snapshot(path, expected_data_version=None):

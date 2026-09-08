@@ -13,6 +13,8 @@ test('Python consumes actual Node publisher bytes for stocks, ETFs, aliases and 
   const folder = await mkdtemp(resolve('.interop-test-'));
   try {
     const empty = createRelease(source);
+    assert.deepEqual(Object.keys(empty.manifest.files).sort(), ['instruments.json', 'symbol-index.json', 'vocabulary.json']);
+    assert.equal(Object.hasOwn(empty.files, 'themes.json'), false);
     for (const [name, bytes] of Object.entries(empty.files)) await writeFile(resolve(folder, name), bytes);
     execFileSync('python3', ['-c', 'import sys; from examples.consumer import load_snapshot; s=load_snapshot(sys.argv[1]); assert len(s._records)==0', folder]);
 
@@ -22,12 +24,18 @@ test('Python consumes actual Node publisher bytes for stocks, ETFs, aliases and 
       record.name.en = 'Synthetic interop fixture';
       record.symbol.mic = 'XNAS';
       record.review = { status: 'reviewed', reviewer: 'Test fixture only', reviewed_at: '2026-09-01T00:00:00Z' };
-      if (!record.classification.primary_theme_id) {
-        record.classification.primary_theme_id = 'ai-cloud';
+      if (record.classification.tag_ids.length && !record.classification.source_ids.length) {
         record.classification.source_ids = ['synthetic'];
         record.sources.push({ id: 'synthetic', kind: 'manual', label: 'Synthetic test rationale only', url: null, accessed_at: null, fields: ['/classification'] });
       }
     }
+    fixture.instruments[0].classification.tag_ids = ['ai-cloud', 'semiconductor-ai'];
+    fixture.instruments[0].classification.source_ids = ['synthetic-tags'];
+    fixture.instruments[0].sources.push({
+      id: 'synthetic-tags', kind: 'manual', label: 'Synthetic overlapping tags only',
+      url: null, accessed_at: null, fields: ['/classification'],
+    });
+    fixture.instruments[1].classification = { tag_ids: [], source_ids: [] };
     const release = createRelease(fixture);
     for (const [name, bytes] of Object.entries(release.files)) await writeFile(resolve(folder, name), bytes);
     const output = execFileSync('python3', ['-c', [
@@ -37,6 +45,13 @@ test('Python consumes actual Node publisher bytes for stocks, ETFs, aliases and 
       'assert len(s._records)==17',
       'assert s.lookup("GOOG")["instrument"]["id"] != s.lookup("GOOGL")["instrument"]["id"]',
       'assert s.lookup("SOXL")["instrument"]["etf"]["leverage_factor"]==3',
+      'assert s.lookup("CRWV")["tags"]==[]',
+      'r=s.lookup("NVDA")',
+      'assert set(r)=={"instrument", "tags"}',
+      'assert "primary_theme_id" not in r["instrument"]["classification"]',
+      'assert [tag["id"] for tag in r["tags"]]==["ai-cloud", "semiconductor-ai"]',
+      'r["tags"][0]["name_zh"]="MUTATED"',
+      'assert s.lookup("NVDA")["tags"][0]["name_zh"]!="MUTATED"',
       'try: s.lookup("BRK-B", provider="other")',
       'except UnknownSymbol: pass',
       'else: raise AssertionError("Provider alias lost its scope")',
@@ -69,13 +84,13 @@ test('JS and Python agree on strict three-level hierarchy and protocol edge case
   Object.assign(item.symbol, { original: 'TEST', canonical: 'TEST', mic: 'XNAS' });
   item.name.en = 'Synthetic protocol fixture';
   item.review = { status: 'reviewed', reviewer: 'Test only', reviewed_at: '2026-09-01T00:00:00Z' };
-  item.classification = { primary_theme_id: 'theme', tag_ids: [], source_ids: ['human'] };
+  item.classification = { tag_ids: ['cloud', 'ai'], source_ids: ['human'] };
   item.industry = { system_id: 'financedatabase', sector_id: 'first-sector', industry_group_id: 'first-group', industry_id: 'first-industry', source_ids: ['human'] };
   item.sources = [{ id: 'human', kind: 'manual', label: 'Synthetic only', fields: ['/classification', '/industry'], url: null, accessed_at: null }];
   const original = {
     schema_version: SCHEMA_VERSION, instruments: [item],
     vocabulary: {
-      schema_version: SCHEMA_VERSION, themes: [label('theme')], tags: [],
+      schema_version: SCHEMA_VERSION, tags: [label('cloud'), label('ai')],
       industry_systems: [{
         ...label('financedatabase'),
         sectors: [label('first-sector'), label('second-sector')],
@@ -89,6 +104,17 @@ test('JS and Python agree on strict three-level hierarchy and protocol edge case
   };
   const mutations = [
     ['complete hierarchy', true, () => {}],
+    ['reviewed without tags', true, (data) => { data.instruments[0].classification = { tag_ids: [], source_ids: [] }; }],
+    ['empty tags with valid source', true, (data) => { data.instruments[0].classification.tag_ids = []; }],
+    ['unknown tag', false, (data) => { data.instruments[0].classification.tag_ids = ['missing']; }],
+    ['duplicate tag', false, (data) => { data.instruments[0].classification.tag_ids = ['ai', 'ai']; }],
+    ['tags without source', false, (data) => { data.instruments[0].classification.source_ids = []; }],
+    ['unknown classification source', false, (data) => { data.instruments[0].classification.source_ids = ['missing']; }],
+    ['missing classification coverage', false, (data) => { data.instruments[0].sources[0].fields = ['/industry']; }],
+    ['empty tags still validate source', false, (data) => { data.instruments[0].classification = { tag_ids: [], source_ids: ['missing'] }; }],
+    ['legacy primary theme forbidden', false, (data) => { data.instruments[0].classification.primary_theme_id = 'cloud'; }],
+    ['legacy themes vocabulary forbidden', false, (data) => { data.vocabulary.themes = []; }],
+    ['duplicate vocabulary tag', false, (data) => { data.vocabulary.tags.push(structuredClone(data.vocabulary.tags[0])); }],
     ['omitted ancestors', true, (data) => { data.instruments[0].industry.sector_id = null; data.instruments[0].industry.industry_group_id = null; }],
     ['group only', true, (data) => { data.instruments[0].industry.sector_id = null; data.instruments[0].industry.industry_id = null; }],
     ['missing record group field', false, (data) => { delete data.instruments[0].industry.industry_group_id; }],
@@ -111,6 +137,7 @@ test('JS and Python agree on strict three-level hierarchy and protocol edge case
     ['FinanceDatabase missing sector parent', false, (data) => { data.vocabulary.industry_systems[0].industries[0].sector_id = null; }],
     ['ETF group forbidden', false, (data) => { data.instruments[0].security_type = 'etf'; data.instruments[0].etf = emptyEtf(); }],
     ['legacy record rejected', false, (data) => { data.instruments[0].schema_version = '1.0.0'; delete data.instruments[0].industry.industry_group_id; }],
+    ['schema two record rejected', false, (data) => { data.instruments[0].schema_version = '2.0.0'; }],
     ['legacy Yahoo without groups', true, (data) => {
       const system = data.vocabulary.industry_systems[0];
       system.id = 'yahoo';
@@ -141,7 +168,7 @@ test('JS and Python agree on strict three-level hierarchy and protocol edge case
     const envelope = { schema_version: SCHEMA_VERSION, data_version: release.version };
     files['instruments.json'] = stableStringify({ ...envelope, instruments: data.instruments });
     const { schema_version, ...vocabulary } = data.vocabulary;
-    files['themes.json'] = stableStringify({ ...envelope, ...vocabulary });
+    files['vocabulary.json'] = stableStringify({ ...envelope, ...vocabulary });
     const manifest = structuredClone(release.manifest);
     for (const filename of Object.keys(manifest.files)) {
       manifest.files[filename] = { sha256: sha256(files[filename]), bytes: Buffer.byteLength(files[filename]) };

@@ -38,7 +38,7 @@ Utilities|Utilities|Electric Utilities;Gas Utilities;Independent Power and Renew
 `.trim().split('\n').map((line) => line.split('|'));
 
 test('the independent FinanceDatabase fixture matches all 11/24/69 pinned label paths', () => {
-  assert.equal(vocabulary.schema_version, '2.0.0');
+  assert.equal(vocabulary.schema_version, '3.0.0');
   assert.equal(system.sectors.length, 11);
   assert.equal(system.industry_groups.length, 24);
   assert.equal(system.industries.length, 69);
@@ -79,19 +79,30 @@ test('legacy Yahoo labels keep their original IDs and do not invent industry gro
   ]);
 });
 
+test('v3 fixtures keep all labels as optional tags with stable records and detached data', () => {
+  const fixture = createDatasetFixture();
+  assert.equal(fixture.instruments.length, 17);
+  assert.equal(fixture.schema_version, '3.0.0');
+  assert.deepEqual(Object.keys(fixture.vocabulary).sort(), ['industry_systems', 'schema_version', 'tags']);
+  assert.equal(fixture.vocabulary.tags.length, 15);
+  for (const record of fixture.instruments) {
+    assert.deepEqual(Object.keys(record.classification).sort(), ['source_ids', 'tag_ids']);
+  }
+  assert.deepEqual(fixture.instruments[0].classification.tag_ids, ['ai', 'semiconductor-ai']);
+  assert.deepEqual(fixture.instruments[12].classification.tag_ids, ['leveraged', 'semiconductor-sector']);
+  assert.ok(fixture.instruments.some((record) => record.classification.tag_ids.length === 0));
+  assert.deepEqual(validateDataset(fixture), []);
+  fixture.vocabulary.tags[0].aliases.push('Only this fixture');
+  fixture.instruments[0].classification.tag_ids.push('Only this fixture');
+  assert.equal(createDatasetFixture().vocabulary.tags[0].aliases.includes('Only this fixture'), false);
+  assert.equal(createDatasetFixture().instruments[0].classification.tag_ids.includes('Only this fixture'), false);
+});
+
 function reviewFixture(record) {
   const edited = structuredClone(record);
   edited.name.en = `Synthetic reviewed ${record.symbol.canonical}`;
   edited.symbol.mic = 'XNAS';
   edited.review.reviewer = 'Synthetic reviewer';
-  if (!edited.classification.primary_theme_id) {
-    edited.classification.primary_theme_id = 'ai-cloud';
-    edited.classification.source_ids = ['synthetic-review'];
-    edited.sources.push({
-      id: 'synthetic-review', kind: 'manual', label: 'Synthetic review rationale only',
-      url: null, accessed_at: null, fields: ['/classification'],
-    });
-  }
   return prepareRecord(record, edited, true);
 }
 
@@ -104,10 +115,8 @@ test('stock review publishes the selected fixture without replacing its industry
     assert.equal(reviewed.review.status, 'reviewed');
     assert.deepEqual(reviewed.industry, record.industry);
     assert.deepEqual(reviewed.symbol.aliases, record.symbol.aliases);
-    assert.deepEqual(reviewed.classification.tag_ids, record.classification.tag_ids);
-    if (record.classification.primary_theme_id) {
-      assert.deepEqual(reviewed.classification, record.classification);
-    }
+    assert.deepEqual(reviewed.classification, record.classification);
+    assert.deepEqual(reviewed.sources, record.sources);
     for (const source of record.sources) {
       assert.deepEqual(reviewed.sources.find((item) => item.id === source.id), source);
     }

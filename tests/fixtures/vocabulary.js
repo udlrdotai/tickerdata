@@ -1,4 +1,4 @@
-// Fixed test-only vocabulary based on the initial v2 definitions (d1ab98c).
+// Fixed test-only vocabulary with all classification labels represented as tags.
 // Keep complete display labels and relationships here, independent of data/.
 function entry(id, name_zh, aliases = []) {
   return { id, name_zh, description: `Synthetic test-only definition: ${id}.`, aliases };
@@ -121,7 +121,7 @@ const industries = [
 export function createVocabularyFixture() {
   const industry_groups = groups.map(([id, name, alias, sector_id]) => ({ ...entry(id, name, [alias]), sector_id }));
   return {
-    schema_version: '2.0.0',
+    schema_version: '3.0.0',
     industry_systems: [
       {
         ...entry('financedatabase', 'FinanceDatabase 行业分类', ['FinanceDatabase']),
@@ -144,7 +144,10 @@ export function createVocabularyFixture() {
         ],
       },
     ],
-    themes: [
+    tags: [
+      entry('ai', '人工智能', ['AI']),
+      entry('leveraged', '杠杆产品'),
+      entry('digital-assets', '数字资产相关'),
       entry('semiconductor-ai', '半导体/AI', ['AI芯片']),
       entry('ai-cloud', 'AI云/算力', ['AI云算力', 'AI算力']),
       entry('bitcoin-treasury', '比特币资产', ['比特币财库']),
@@ -157,11 +160,6 @@ export function createVocabularyFixture() {
       entry('gold', '黄金'),
       entry('us-long-treasury', '长期美国国债', ['美债长久期']),
       entry('bitcoin', '比特币', ['BTC']),
-    ],
-    tags: [
-      entry('ai', '人工智能', ['AI']),
-      entry('leveraged', '杠杆产品'),
-      entry('digital-assets', '数字资产相关'),
     ],
   };
 }

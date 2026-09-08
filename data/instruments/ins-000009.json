@@ -1,10 +1,9 @@
 {
   "classification": {
-    "primary_theme_id": "semiconductor-foundry",
     "source_ids": [
       "manual-example"
     ],
-    "tag_ids": []
+    "tag_ids": ["semiconductor-foundry"]
   },
   "etf": null,
   "id": "ins-000009",
@@ -31,7 +30,7 @@
     "reviewer": null,
     "status": "pending"
   },
-  "schema_version": "2.0.0",
+  "schema_version": "3.0.0",
   "security_type": "stock",
   "sources": [
     {

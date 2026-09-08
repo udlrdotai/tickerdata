@@ -1,11 +1,11 @@
 {
   "classification": {
-    "primary_theme_id": "semiconductor-sector",
     "source_ids": [
       "manual-example"
     ],
     "tag_ids": [
-      "leveraged"
+      "leveraged",
+      "semiconductor-sector"
     ]
   },
   "etf": {
@@ -45,7 +45,7 @@
     "reviewer": null,
     "status": "pending"
   },
-  "schema_version": "2.0.0",
+  "schema_version": "3.0.0",
   "security_type": "etf",
   "sources": [
     {

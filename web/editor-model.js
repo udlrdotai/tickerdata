@@ -1,4 +1,4 @@
-import { stableStringify } from '../src/model.js';
+import { SCHEMA_VERSION, stableStringify } from '../src/model.js';
 import { validateDatasetShape } from '../src/validation.js';
 
 export const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -56,7 +56,6 @@ export function matchesRecord(record, filters) {
   ].filter(Boolean).join(' ').toLocaleLowerCase();
   return haystack.includes((filters.query ?? '').trim().toLocaleLowerCase()) &&
     (!filters.type || record.security_type === filters.type) &&
-    (!filters.theme || (filters.theme === '__none' ? !record.classification.primary_theme_id : record.classification.primary_theme_id === filters.theme)) &&
     (!filters.tag || record.classification.tag_ids.includes(filters.tag)) &&
     (!filters.review || record.review.status === filters.review);
 }
@@ -86,9 +85,9 @@ export function prepareRecord(previous, next, explicitlyReviewed = false) {
 }
 
 export function references(dataset, kind, id) {
-  return dataset.instruments.filter((record) => kind === 'themes'
-    ? record.classification.primary_theme_id === id
-    : kind === 'tags' ? record.classification.tag_ids.includes(id) : record.industry.system_id === id);
+  if (!['tags', 'industry_systems'].includes(kind)) throw new Error('只支持标签和行业体系引用。');
+  return dataset.instruments.filter((record) => kind === 'tags'
+    ? record.classification.tag_ids.includes(id) : record.industry.system_id === id);
 }
 
 export function downgradeRelatedReviews(dataset) {
@@ -115,7 +114,7 @@ export function applyVocabulary(dataset, vocabulary) {
 
 function markVocabularyChanges(dataset, next) {
   const vocabulary = next.vocabulary;
-  for (const kind of ['themes', 'tags', 'industry_systems']) {
+  for (const kind of ['tags', 'industry_systems']) {
     for (const before of dataset.vocabulary[kind]) {
       const after = vocabulary[kind].find((item) => item.id === before.id);
       const affected = references(next, kind, before.id);
@@ -128,7 +127,15 @@ function markVocabularyChanges(dataset, next) {
   return downgradeRelatedReviews(next);
 }
 
+export function assertCurrentImportVersion(value) {
+  const parts = [value, value?.vocabulary, ...(Array.isArray(value?.instruments) ? value.instruments : [])];
+  if (parts.some((part) => ['1.0.0', '2.0.0'].includes(part?.schema_version))) {
+    throw new Error(`仅支持 schema_version ${SCHEMA_VERSION} 导入；旧版文件请先在仓库运行 npm run migrate -- legacy.json 预览迁移，再按输出指引应用迁移并重新构建。不会自动丢弃旧版分类。`);
+  }
+}
+
 export function prepareImportedDataset(current, candidate) {
+  assertCurrentImportVersion(candidate);
   const errors = validateDatasetShape(candidate);
   if (errors.length) throw new Error(`导入结构无效：\n${errors.join('\n')}`);
   const next = clone(candidate);
@@ -138,7 +145,7 @@ export function prepareImportedDataset(current, candidate) {
 }
 
 export function mergeVocabulary(dataset, kind, fromId, toId) {
-  if (!['themes', 'tags'].includes(kind)) throw new Error('只支持主题和标签的 ID 合并。');
+  if (kind !== 'tags') throw new Error('只支持标签的 ID 合并。');
   const next = clone(dataset);
   const labels = next.vocabulary[kind];
   const from = labels.find((item) => item.id === fromId);
@@ -150,8 +157,7 @@ export function mergeVocabulary(dataset, kind, fromId, toId) {
     if (!names.has(key)) { to.aliases.push(name); names.add(key); }
   }
   for (const record of references(next, kind, fromId)) {
-    if (kind === 'themes') record.classification.primary_theme_id = toId;
-    else record.classification.tag_ids = [...new Set(record.classification.tag_ids.map((id) => id === fromId ? toId : id))];
+    record.classification.tag_ids = [...new Set(record.classification.tag_ids.map((id) => id === fromId ? toId : id))];
     record.review.status = 'needs_review';
   }
   // The surviving label's meaning/aliases also changed.

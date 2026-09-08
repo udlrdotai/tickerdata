@@ -1,4 +1,4 @@
-import { readFile, readdir, mkdir, writeFile, cp, access } from 'node:fs/promises';
+import { readFile, readdir, mkdir, writeFile, cp, access, rm } from 'node:fs/promises';
 import { resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -33,7 +33,7 @@ function loadBaseline(ref) {
   if (!files.length) return { instruments: [] };
   const vocabulary = JSON.parse(git(['show', `${ref}:data/vocabulary.json`]));
   const dataset = { schema_version: vocabulary.schema_version, instruments: files.map((file) => JSON.parse(git(['show', `${ref}:${file}`]))), vocabulary };
-  assertValid(dataset.schema_version === '1.0.0' ? validateLegacyDataset(dataset) : validateDataset(dataset));
+  assertValid(dataset.schema_version !== '3.0.0' ? validateLegacyDataset(dataset) : validateDataset(dataset));
   return dataset;
 }
 
@@ -74,6 +74,11 @@ async function writeRelease(path, release) {
   for (const [name, content] of Object.entries(release.files)) await writeFile(resolve(path, name), content);
 }
 
+export async function writeLatestRelease(dist, release) {
+  await writeRelease(resolve(dist, 'latest'), release);
+  await rm(resolve(dist, 'latest/themes.json'), { force: true });
+}
+
 async function buildSite(dataset) {
   const schemas = {};
   for (const filename of (await readdir(resolve(root, 'schemas'))).filter((name) => name.endsWith('.json')).sort()) schemas[filename] = await json(resolve(root, 'schemas', filename));
@@ -89,7 +94,7 @@ async function buildSite(dataset) {
     if (error.code !== 'ENOENT') throw error;
   }
   await writeRelease(immutablePath, release);
-  await writeRelease(resolve(dist, 'latest'), release);
+  await writeLatestRelease(dist, release);
   const siteConfig = await json(resolve(root, 'config/site.json'));
   if (siteConfig.repository_url !== null && !/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(siteConfig.repository_url)) throw new Error('repository_url must be null or a GitHub repository HTTPS URL');
   if (typeof siteConfig.branch !== 'string' || !siteConfig.branch.trim() || typeof siteConfig.pages_enabled !== 'boolean') throw new Error('Invalid site configuration');

@@ -1,5 +1,11 @@
 import validators from '../web/generated/validators.cjs';
 import { normalizeSymbol, SCHEMA_VERSION, stableStringify } from './model.js';
+import { isLegacyVersion, migrateDataset } from './migration.js';
+
+function versionValidators(version) {
+  const suffix = version === '1.0.0' ? 'V1' : version === '2.0.0' ? 'V2' : '';
+  return Object.fromEntries(['instrument', 'vocabulary', 'suggestion'].map((kind) => [kind, validators[`${kind}${suffix}`]]));
+}
 
 function schemaErrors(validator, value, prefix) {
   if (validator(value)) return [];
@@ -39,7 +45,7 @@ function versionedDatasetShape(dataset, version) {
       Object.keys(dataset).some((key) => !['schema_version', 'instruments', 'vocabulary'].includes(key))) {
     return [`dataset: expected supported schema_version ${version}, instruments array and vocabulary`];
   }
-  const schema = version === '1.0.0' ? { vocabulary: validators.vocabularyV1, instrument: validators.instrumentV1 } : validators;
+  const schema = versionValidators(version);
   const errors = schemaErrors(schema.vocabulary, dataset.vocabulary, 'vocabulary');
   dataset.instruments.forEach((record, index) => {
     errors.push(...schemaErrors(schema.instrument, record, `instruments[${index}]`));
@@ -56,21 +62,36 @@ export function validateDataset(dataset) {
 }
 
 export function validateLegacyDataset(dataset) {
-  return validateVersionedDataset(dataset, '1.0.0');
+  if (!isLegacyVersion(dataset?.schema_version)) return ['dataset: expected original schema_version 1.0.0 or 2.0.0'];
+  return validateVersionedDataset(dataset, dataset.schema_version);
 }
 
 export function validateLegacyShape(payload, kind) {
   if (!['instrument', 'vocabulary'].includes(kind)) return ['Unsupported legacy payload kind'];
-  return schemaErrors(validators[`${kind}V1`], payload, kind);
+  if (!isLegacyVersion(payload?.schema_version)) return [`${kind}: expected original schema_version 1.0.0 or 2.0.0`];
+  return schemaErrors(versionValidators(payload.schema_version)[kind], payload, kind);
 }
 
-function validateVersionedDataset(dataset, version) {
-  const errors = versionedDatasetShape(dataset, version);
+// The surrounding records were validated in their own protocol by the caller.
+// Only their IDs and review states are needed to check raw legacy relationships.
+export function validateLegacyInstrument(record, vocabulary, contextRecords) {
+  const errors = validateLegacyShape(record, 'instrument');
+  if (errors.length) return errors;
+  return validateVersionedDataset({
+    schema_version: record.schema_version, vocabulary,
+    instruments: [...contextRecords.filter((item) => item.id !== record.id), record],
+  }, record.schema_version, new Set([record.id]));
+}
+
+function validateVersionedDataset(dataset, version, selectedIds = null) {
+  const errors = versionedDatasetShape(selectedIds ? {
+    ...dataset, instruments: dataset.instruments.filter((record) => selectedIds.has(record.id)),
+  } : dataset, version);
   // Shape validation must complete before traversing untrusted imports.
   if (errors.length) return errors;
 
   const vocabulary = dataset.vocabulary;
-  const themes = uniqueLabels(vocabulary.themes, 'themes', errors);
+  const themes = isLegacyVersion(version) ? uniqueLabels(vocabulary.themes, 'themes', errors) : new Set();
   const tags = uniqueLabels(vocabulary.tags, 'tags', errors);
   uniqueLabels(vocabulary.industry_systems, 'industry_systems', errors);
   const systems = new Map();
@@ -102,6 +123,7 @@ function validateVersionedDataset(dataset, version) {
     const fail = (message) => errors.push(`${record.id}: ${message}`);
     if (ids.has(record.id)) fail('duplicate stable ID');
     ids.add(record.id);
+    if (selectedIds && !selectedIds.has(record.id)) continue;
     if (normalizeSymbol(record.symbol.canonical) !== record.symbol.canonical) fail('canonical symbol must be trimmed uppercase; punctuation is preserved');
     if (record.symbol.history.some((item) => item.valid_from && item.valid_to && item.valid_from > item.valid_to)) fail('symbol history start is after end');
 
@@ -136,11 +158,11 @@ function validateVersionedDataset(dataset, version) {
     const hierarchy = [industry.system_id, industry.sector_id, industry.industry_id, ...(version === '1.0.0' ? [] : [industry.industry_group_id])];
     if (hierarchy.some((value) => value !== null) && !industry.source_ids.length) fail('standard industry needs its own source');
 
-    if (record.classification.primary_theme_id !== null && !themes.has(record.classification.primary_theme_id)) fail('unknown primary theme');
+    if (isLegacyVersion(version) && record.classification.primary_theme_id !== null && !themes.has(record.classification.primary_theme_id)) fail('unknown primary theme');
     for (const id of record.classification.tag_ids) {
       if (!tags.has(id)) fail(`unknown tag ${id}`);
     }
-    if ((record.classification.primary_theme_id !== null || record.classification.tag_ids.length) && !record.classification.source_ids.length) fail('classification needs its own source');
+    if (((isLegacyVersion(version) && record.classification.primary_theme_id !== null) || record.classification.tag_ids.length) && !record.classification.source_ids.length) fail('classification needs its own source');
 
     if (record.security_type === 'etf') {
       if (record.etf === null) fail('ETF must have an ETF object (unknown attributes may be null)');
@@ -156,7 +178,7 @@ function validateVersionedDataset(dataset, version) {
     if (record.review.status === 'reviewed') {
       if (!record.review.reviewed_at || !record.review.reviewer?.trim()) fail('reviewed record needs UTC review time and reviewer');
       if (!record.name.en?.trim() || !record.symbol.mic) fail('reviewed record needs English name and listing MIC');
-      if (!record.classification.primary_theme_id || !record.classification.source_ids.length) fail('reviewed record needs a primary theme and rationale source');
+      if (isLegacyVersion(version) && (!record.classification.primary_theme_id || !record.classification.source_ids.length)) fail('reviewed record needs a primary theme and rationale source');
     }
 
     const ownAliases = new Set();
@@ -181,6 +203,7 @@ function validateVersionedDataset(dataset, version) {
     }
   }
   for (const record of dataset.instruments) {
+    if (selectedIds && !selectedIds.has(record.id)) continue;
     for (const id of record.related_instrument_ids) {
       if (id === record.id || !ids.has(id)) errors.push(`${record.id}: invalid related instrument ${id}`);
       else if (record.review.status === 'reviewed' && !dataset.instruments.some((item) => item.id === id && item.review.status === 'reviewed')) errors.push(`${record.id}: reviewed related instrument ${id} must also be reviewed before publication`);
@@ -191,6 +214,18 @@ function validateVersionedDataset(dataset, version) {
 
 export function validateReviewTransitions(previous, next) {
   const errors = [];
+  if (isLegacyVersion(previous.schema_version)) {
+    errors.push(...validateLegacyDataset(previous));
+    if (errors.length) return errors;
+    try {
+      previous = migrateDataset(previous);
+    } catch (error) {
+      return [error.message];
+    }
+  } else if (previous.schema_version !== undefined) {
+    errors.push(...validateDataset(previous));
+    if (errors.length) return errors;
+  }
   const nextById = new Map(next.instruments.map((record) => [record.id, record]));
   for (const before of previous.instruments) {
     const after = nextById.get(before.id);
@@ -212,7 +247,7 @@ export function validateReviewTransitions(previous, next) {
 }
 
 export function validateSuggestionShape(suggestion) {
-  return schemaErrors(suggestion?.schema_version === '1.0.0' ? validators.suggestionV1 : validators.suggestion, suggestion, 'suggestion');
+  return schemaErrors(versionValidators(suggestion?.schema_version).suggestion, suggestion, 'suggestion');
 }
 
 export function validateSuggestion(suggestion, dataset, recordHash) {
@@ -222,6 +257,7 @@ export function validateSuggestion(suggestion, dataset, recordHash) {
   const record = dataset.instruments.find((item) => item.id === suggestion.instrument_id);
   if (!record) errors.push('suggestion: unknown instrument');
   else if (recordHash && suggestion.base_record_sha256 !== recordHash(record)) errors.push('suggestion: stale base record; regenerate or reassess manually');
+  if (suggestion.schema_version !== dataset.schema_version) return errors;
   const fields = new Set();
   for (const proposal of suggestion.proposed) {
     if (fields.has(proposal.field)) errors.push('suggestion: duplicate proposed field');
@@ -239,11 +275,15 @@ export function validateSuggestion(suggestion, dataset, recordHash) {
     if (decision.proposal_index >= suggestion.proposed.length || decisions.has(decision.proposal_index)) errors.push('suggestion: invalid or duplicate decision index');
     decisions.add(decision.proposal_index);
   }
-  uniqueLabels(suggestion.new_theme_proposals, 'suggestion/new_themes', errors);
-  const themeNames = new Set(dataset.vocabulary.themes.flatMap((item) => [item.name_zh, ...item.aliases]).map((name) => name.trim().toLowerCase()));
-  for (const theme of suggestion.new_theme_proposals) {
-    if (dataset.vocabulary.themes.some((existing) => existing.id === theme.id) ||
-        [theme.name_zh, ...theme.aliases].some((name) => themeNames.has(name.trim().toLowerCase()))) errors.push('suggestion: proposed new theme duplicates existing vocabulary');
+  const legacy = isLegacyVersion(suggestion.schema_version);
+  const proposals = legacy ? suggestion.new_theme_proposals : suggestion.new_tag_proposals;
+  const labels = legacy ? dataset.vocabulary.themes : dataset.vocabulary.tags;
+  const kind = legacy ? 'theme' : 'tag';
+  uniqueLabels(proposals, `suggestion/new_${kind}s`, errors);
+  const names = new Set(labels.flatMap((item) => [item.name_zh, ...item.aliases]).map((name) => name.trim().toLowerCase()));
+  for (const label of proposals) {
+    if (labels.some((existing) => existing.id === label.id) ||
+        [label.name_zh, ...label.aliases].some((name) => names.has(name.trim().toLowerCase()))) errors.push(`suggestion: proposed new ${kind} duplicates existing vocabulary`);
   }
   return errors;
 }

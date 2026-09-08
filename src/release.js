@@ -24,7 +24,6 @@ export function createRelease(dataset, { sourceCommit = null, generatedAt = '197
     instruments: [...dataset.instruments].sort(compareId),
     vocabulary: {
       ...dataset.vocabulary,
-      themes: [...dataset.vocabulary.themes].sort(compareId),
       tags: [...dataset.vocabulary.tags].sort(compareId),
       industry_systems: [...dataset.vocabulary.industry_systems].sort(compareId),
     },
@@ -40,7 +39,7 @@ export function createRelease(dataset, { sourceCommit = null, generatedAt = '197
   });
   const files = {
     'instruments.json': stableStringify({ ...envelope, instruments }),
-    'themes.json': stableStringify({ ...envelope, themes: normalized.vocabulary.themes, tags: normalized.vocabulary.tags, industry_systems: normalized.vocabulary.industry_systems }),
+    'vocabulary.json': stableStringify({ ...envelope, tags: normalized.vocabulary.tags, industry_systems: normalized.vocabulary.industry_systems }),
     'symbol-index.json': stableStringify({ ...envelope, entries }),
   };
   const manifest = {

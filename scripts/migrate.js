@@ -1,8 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SCHEMA_VERSION, stableStringify } from '../src/model.js';
-import { validateDataset, validateLegacyDataset, validateLegacyShape } from '../src/validation.js';
+import { stableStringify } from '../src/model.js';
+import { validateDataset, validateLegacyDataset, validateLegacyShape, validateLegacyInstrument } from '../src/validation.js';
+import { isLegacyVersion, migrateDataset, migrateInstrument, migrateVocabulary } from '../src/migration.js';
 import { sha256 } from '../src/release.js';
 import { loadDataset } from './cli.js';
 import { prepareImport, applyPreparedImport, datasetHash } from './import.js';
@@ -14,9 +15,9 @@ function assertValid(errors) {
 }
 
 function kindOf(payload) {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Expected a v1 instrument, vocabulary, or maintenance bundle');
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Expected a v1/v2 instrument, vocabulary, or maintenance bundle');
   if ('data_version' in payload || 'manifest.json' in payload || 'files' in payload) throw new Error('Historical releases cannot be migrated or rewritten; migrate maintenance source data and publish a new release');
-  if (payload.schema_version !== '1.0.0') throw new Error('Migration requires original schema_version 1.0.0; already migrated or unsupported protocol');
+  if (!isLegacyVersion(payload.schema_version)) throw new Error('Migration requires original schema_version 1.0.0 or 2.0.0; already migrated or unsupported protocol');
   if ('instruments' in payload) return 'dataset';
   if ('industry_systems' in payload) return 'vocabulary';
   return 'instrument';
@@ -34,57 +35,27 @@ function merge(current, payload, kind) {
   return next;
 }
 
-// This is only a validation context for old references, never a migrated output.
-// The original payload is inserted after projection and strictly validated as v1.
-function legacyContext(current) {
-  const context = structuredClone(current);
-  context.schema_version = '1.0.0';
-  context.vocabulary.schema_version = '1.0.0';
-  for (const system of context.vocabulary.industry_systems) {
-    delete system.industry_groups;
-    for (const industry of system.industries) delete industry.industry_group_id;
-  }
-  for (const record of context.instruments) {
-    record.schema_version = '1.0.0';
-    delete record.industry.industry_group_id;
-  }
-  return context;
-}
-
-function upgrade(payload, kind) {
-  const result = structuredClone(payload);
-  result.schema_version = SCHEMA_VERSION;
-  if (kind === 'dataset') {
-    result.vocabulary = upgrade(result.vocabulary, 'vocabulary');
-    result.instruments = result.instruments.map((record) => upgrade(record, 'instrument'));
-  } else if (kind === 'vocabulary') {
+function legacyVocabularyContext(vocabulary, version) {
+  const result = structuredClone(vocabulary);
+  if (!isLegacyVersion(result.schema_version)) result.themes = structuredClone(result.tags);
+  if (version === '1.0.0') {
+    for (const system of result.industry_systems) {
+      delete system.industry_groups;
+      for (const industry of system.industries) delete industry.industry_group_id;
+    }
+  } else if (result.schema_version === '1.0.0') {
     for (const system of result.industry_systems) {
       system.industry_groups = [];
       for (const industry of system.industries) industry.industry_group_id = null;
     }
-  } else result.industry.industry_group_id = null;
+  }
+  result.schema_version = version;
   return result;
 }
 
-function invalidateContextReviews(context, suppliedIds) {
-  let changed;
-  do {
-    changed = false;
-    const reviewed = new Set(context.instruments.filter((record) => record.review.status === 'reviewed').map((record) => record.id));
-    for (const record of context.instruments) {
-      // Imported review assertions must pass unchanged. Only existing dependents
-      // outside the raw payload may lose review during contextual validation.
-      if (!suppliedIds.has(record.id) && record.review.status === 'reviewed' &&
-          record.related_instrument_ids.some((id) => !reviewed.has(id))) {
-        record.review.status = 'needs_review';
-        changed = true;
-      }
-    }
-  } while (changed);
-}
-
-function invalidateReviews(current, candidate, invalidateVocabulary, migratedIds) {
+function invalidateReviews(current, candidate) {
   const before = new Map(current.instruments.map((record) => [record.id, record]));
+  const vocabularyChanged = stableStringify(current.vocabulary) !== stableStringify(candidate.vocabulary);
   const downgrade = (record) => {
     record.review.status = 'needs_review';
   };
@@ -95,8 +66,16 @@ function invalidateReviews(current, candidate, invalidateVocabulary, migratedIds
       const { review, ...rest } = value;
       return stableStringify(rest);
     };
-    if ((record.review.status === 'reviewed' || prior?.review.status === 'reviewed') &&
-        (invalidateVocabulary || migratedIds.has(record.id) || content(prior) !== content(record))) downgrade(record);
+    if (record.review.status === 'reviewed' || prior?.review.status === 'reviewed') {
+      if (!vocabularyChanged && content(prior) === content(record) &&
+          prior?.review.status === 'reviewed' && record.review.status === 'reviewed') {
+        record.review = structuredClone(prior.review);
+      } else {
+        // A legacy assertion is not a new human review of current data.
+        if (prior) record.review = structuredClone(prior.review);
+        downgrade(record);
+      }
+    }
   }
   let changed;
   do {
@@ -113,16 +92,24 @@ function invalidateReviews(current, candidate, invalidateVocabulary, migratedIds
 
 export function prepareMigration(current, payload) {
   const kind = kindOf(payload);
-  assertValid(current.schema_version === '1.0.0' ? validateLegacyDataset(current) : validateDataset(current));
+  assertValid(isLegacyVersion(current.schema_version) ? validateLegacyDataset(current) : validateDataset(current));
   if (kind !== 'dataset') assertValid(validateLegacyShape(payload, kind));
-  const original = merge(current.schema_version === '1.0.0' ? current : legacyContext(current), payload, kind);
-  if (kind === 'instrument') invalidateContextReviews(original, new Set([payload.id]));
-  assertValid(validateLegacyDataset(original));
-  const candidate = current.schema_version === '1.0.0'
-    ? upgrade(original, 'dataset')
-    : merge(current, upgrade(payload, kind), kind);
-  const migratedIds = new Set(kind === 'instrument' ? [payload.id] : []);
-  invalidateReviews(current, candidate, kind !== 'instrument' || current.schema_version === '1.0.0', migratedIds);
+  if (kind === 'dataset') assertValid(validateLegacyDataset(payload));
+  else if (kind === 'vocabulary') assertValid(validateLegacyDataset({
+    schema_version: payload.schema_version, vocabulary: payload, instruments: [],
+  }));
+  else assertValid(validateLegacyInstrument(payload,
+    legacyVocabularyContext(current.vocabulary, payload.schema_version), current.instruments));
+  if (kind === 'vocabulary' && isLegacyVersion(current.schema_version)) {
+    assertValid(validateLegacyDataset({
+      ...current, vocabulary: legacyVocabularyContext(payload, current.schema_version),
+    }));
+  }
+  const baseline = isLegacyVersion(current.schema_version) ? migrateDataset(current) : structuredClone(current);
+  const converted = kind === 'dataset' ? migrateDataset(payload)
+    : kind === 'vocabulary' ? migrateVocabulary(payload) : migrateInstrument(payload);
+  const candidate = merge(baseline, converted, kind);
+  invalidateReviews(baseline, candidate);
   const prepared = prepareImport(current, candidate);
   const sourceHash = prepared.expected;
   // Bind approval to both source state and the exact legacy input, not just its filename.

@@ -1,10 +1,9 @@
 {
   "classification": {
-    "primary_theme_id": "nasdaq-100",
     "source_ids": [
       "manual-example"
     ],
-    "tag_ids": []
+    "tag_ids": ["nasdaq-100"]
   },
   "etf": {
     "asset_class": null,
@@ -43,7 +42,7 @@
     "reviewer": null,
     "status": "pending"
   },
-  "schema_version": "2.0.0",
+  "schema_version": "3.0.0",
   "security_type": "etf",
   "sources": [
     {
