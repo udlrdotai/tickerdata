@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { emptyInstrument, emptyEtf, stableStringify, SCHEMA_VERSION } from '../src/model.js';
 import { validateDataset, validateReviewTransitions, validateSuggestion, symbolEntries } from '../src/validation.js';
 import { createRelease, sha256, recordHash } from '../src/release.js';
 import { loadDataset } from '../scripts/cli.js';
+import { createDatasetFixture } from './fixtures/dataset.js';
 
-const vocabulary = JSON.parse(await readFile(new URL('../data/vocabulary.json', import.meta.url), 'utf8'));
+const vocabulary = createDatasetFixture().vocabulary;
 
 function record(id = 'ins-test', symbol = 'TEST', mic = 'XNAS') {
   const value = emptyInstrument(id);
@@ -29,8 +29,21 @@ function expectInvalid(change, pattern) {
   assert.match(validateDataset(value).join('\n'), pattern);
 }
 
-test('17 source examples are valid but none pretend to be reviewed', async () => {
+test('maintained source is valid and publishes exactly its currently reviewed records', async () => {
   const value = await loadDataset();
+  assert.deepEqual(validateDataset(value), []);
+  const release = createRelease(value);
+  const expected = value.instruments.filter((item) => item.review.status === 'reviewed')
+    .sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  assert.deepEqual(JSON.parse(release.files['instruments.json']).instruments, expected);
+  assert.deepEqual(
+    [...new Set(JSON.parse(release.files['symbol-index.json']).entries.map((entry) => entry.instrument_id))].sort(),
+    expected.map((item) => item.id).sort(),
+  );
+});
+
+test('independent sample fixtures preserve pending defaults, aliases and share-class identities', () => {
+  const value = createDatasetFixture();
   assert.equal(value.instruments.length, 17);
   assert.deepEqual(validateDataset(value), []);
   assert.ok(value.instruments.every((item) => item.review.status === 'pending'));
@@ -39,6 +52,10 @@ test('17 source examples are valid but none pretend to be reviewed', async () =>
   const googl = value.instruments.find((item) => item.symbol.original === 'GOOGL');
   assert.notEqual(goog.id, googl.id);
   assert.equal(goog.issuer.id, googl.issuer.id);
+  value.instruments[0].review.status = 'needs_review';
+  value.vocabulary.themes[0].name_zh = 'Changed only in this test';
+  assert.equal(createDatasetFixture().instruments[0].review.status, 'pending');
+  assert.notEqual(createDatasetFixture().vocabulary.themes[0].name_zh, value.vocabulary.themes[0].name_zh);
 });
 
 test('strict schema rejects malformed imports, unexpected properties and invalid dates', () => {

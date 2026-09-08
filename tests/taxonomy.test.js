@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
-import { readFile, readdir } from 'node:fs/promises';
 import test from 'node:test';
+import { createDatasetFixture } from './fixtures/dataset.js';
+import { validateDataset } from '../src/validation.js';
+import { createRelease } from '../src/release.js';
+import { prepareRecord } from '../web/editor-model.js';
 
-const json = async (path) => JSON.parse(await readFile(new URL(path, import.meta.url), 'utf8'));
-const vocabulary = await json('../data/vocabulary.json');
+const vocabulary = createDatasetFixture().vocabulary;
 const system = vocabulary.industry_systems.find((item) => item.id === 'financedatabase');
 const commit = 'ac05d03dbed851a6fd3905a2e92ee036d0397760';
 
@@ -35,7 +37,7 @@ Real Estate|Real Estate|Equity Real Estate Investment Trusts (REITs);Real Estate
 Utilities|Utilities|Electric Utilities;Gas Utilities;Independent Power and Renewable Electricity Producers;Multi-Utilities;Water Utilities
 `.trim().split('\n').map((line) => line.split('|'));
 
-test('FinanceDatabase matches all 11/24/69 pinned English labels and parent paths', () => {
+test('the independent FinanceDatabase fixture matches all 11/24/69 pinned label paths', () => {
   assert.equal(vocabulary.schema_version, '2.0.0');
   assert.equal(system.sectors.length, 11);
   assert.equal(system.industry_groups.length, 24);
@@ -77,65 +79,56 @@ test('legacy Yahoo labels keep their original IDs and do not invent industry gro
   ]);
 });
 
-test('ten stock source paths match the pinned provider, without promoting review or replacing themes', async () => {
-  const chip = ['information-technology', 'semiconductors-semiconductor-equipment', 'semiconductors-semiconductor-equipment'];
-  const software = ['information-technology', 'software-services', 'software'];
-  const telecom = ['communication-services', 'telecommunication-services', 'diversified-telecommunication-services'];
-  const expected = [
-    ['NVDA', chip, 'NMS', 'semiconductor-ai'],
-    ['CRWV', software, 'NMS', 'ai-cloud'],
-    ['MSTR', software, 'NMS', 'bitcoin-treasury'],
-    ['TSLA', ['consumer-discretionary', 'automobiles-components', 'automobiles'], 'NMS', null],
-    ['GOOG', telecom, 'NMS', null],
-    ['GOOGL', telecom, 'NMS', null],
-    ['ARM', chip, 'NMS', null],
-    ['BABA', ['consumer-discretionary', 'retailing', 'internet-direct-marketing-retail'], 'NYQ', null],
-    ['TSM', chip, 'NYQ', 'semiconductor-foundry'],
-    ['BRK.B', ['financials', 'insurance', 'insurance'], 'NYQ', null],
-  ];
-  for (const [index, [symbol, path, exchange, theme]] of expected.entries()) {
-    const record = await json(`../data/instruments/ins-${String(index + 1).padStart(6, '0')}.json`);
-    assert.equal(record.schema_version, '2.0.0');
-    assert.equal(record.symbol.canonical, symbol);
-    assert.equal(record.security_type, 'stock');
-    assert.equal(record.industry.system_id, 'financedatabase');
-    assert.deepEqual([record.industry.sector_id, record.industry.industry_group_id, record.industry.industry_id], path);
-    assert.deepEqual(record.review, { reviewed_at: null, reviewer: null, status: 'pending' });
-    assert.equal(record.classification.primary_theme_id, theme);
-    assert.deepEqual(record.classification.source_ids, theme ? ['manual-example'] : []);
-    if (theme) assert.equal(record.sources.find((source) => source.id === 'manual-example').kind, 'manual');
-    assert.deepEqual(record.industry.source_ids, ['financedatabase-equities']);
-    const source = record.sources.find((item) => item.id === 'financedatabase-equities');
-    assert.equal(source.kind, 'provider');
-    assert.equal(source.url, `https://github.com/JerBouma/FinanceDatabase/blob/${commit}/database/equities/${exchange}.csv`);
-    assert.equal(source.accessed_at, '2026-09-08T01:03:47Z');
-    assert.deepEqual(source.fields, ['/industry']);
-    assert.ok(source.label.includes(symbol === 'BRK.B' ? 'BRK-B' : symbol));
-    for (const [labels, id] of [[system.sectors, path[0]], [system.industry_groups, path[1]], [system.industries, path[2]]]) {
-      assert.ok(source.label.includes(labels.find((item) => item.id === id).aliases[0]));
-    }
-    if (symbol === 'GOOG' || symbol === 'GOOGL') {
-      assert.match(record.notes, /\u884c\u4e1a\u7591\u70b9/);
-      assert.ok(record.notes.includes('Diversified Telecommunication Services'));
-    }
-    if (symbol === 'BRK.B') assert.deepEqual(record.symbol.aliases, [{ provider: 'yahoo', symbol: 'BRK-B' }]);
-    assert.equal(record.name.en, null);
-    assert.equal(record.symbol.mic, null);
-    assert.equal(record.listing_status, 'unknown');
+function reviewFixture(record) {
+  const edited = structuredClone(record);
+  edited.name.en = `Synthetic reviewed ${record.symbol.canonical}`;
+  edited.symbol.mic = 'XNAS';
+  edited.review.reviewer = 'Synthetic reviewer';
+  if (!edited.classification.primary_theme_id) {
+    edited.classification.primary_theme_id = 'ai-cloud';
+    edited.classification.source_ids = ['synthetic-review'];
+    edited.sources.push({
+      id: 'synthetic-review', kind: 'manual', label: 'Synthetic review rationale only',
+      url: null, accessed_at: null, fields: ['/classification'],
+    });
   }
+  return prepareRecord(record, edited, true);
+}
+
+test('stock review publishes the selected fixture without replacing its industry or existing evidence', () => {
+  const fixture = createDatasetFixture();
+  const before = structuredClone(fixture);
+  for (const record of fixture.instruments.filter((item) => item.security_type === 'stock')) {
+    const reviewed = reviewFixture(record);
+    assert.equal(record.industry.system_id, 'financedatabase');
+    assert.equal(reviewed.review.status, 'reviewed');
+    assert.deepEqual(reviewed.industry, record.industry);
+    assert.deepEqual(reviewed.symbol.aliases, record.symbol.aliases);
+    assert.deepEqual(reviewed.classification.tag_ids, record.classification.tag_ids);
+    if (record.classification.primary_theme_id) {
+      assert.deepEqual(reviewed.classification, record.classification);
+    }
+    for (const source of record.sources) {
+      assert.deepEqual(reviewed.sources.find((item) => item.id === source.id), source);
+    }
+    const candidate = { ...fixture, instruments: fixture.instruments.map((item) => item.id === record.id ? reviewed : item) };
+    assert.deepEqual(validateDataset(candidate), []);
+    assert.deepEqual(JSON.parse(createRelease(candidate).files['instruments.json']).instruments, [reviewed]);
+  }
+  assert.deepEqual(fixture, before);
 });
 
-test('the seven ETFs keep empty company hierarchy and their independent themes', async () => {
-  const themes = ['us-large-cap', 'nasdaq-100', 'semiconductor-sector', 'china-internet', 'gold', 'us-long-treasury', 'bitcoin'];
-  for (const [index, theme] of themes.entries()) {
-    const record = await json(`../data/instruments/ins-${String(index + 11).padStart(6, '0')}.json`);
-    assert.equal(record.schema_version, '2.0.0');
-    assert.equal(record.security_type, 'etf');
-    assert.deepEqual(record.industry, { system_id: null, sector_id: null, industry_group_id: null, industry_id: null, source_ids: [] });
-    assert.equal(record.classification.primary_theme_id, theme);
-    assert.deepEqual(record.review, { reviewed_at: null, reviewer: null, status: 'pending' });
-    assert.ok(record.etf);
+test('ETF review preserves independent attributes and still rejects company industry assignments', () => {
+  const fixture = createDatasetFixture();
+  for (const record of fixture.instruments.filter((item) => item.security_type === 'etf')) {
+    const reviewed = reviewFixture(record);
+    assert.deepEqual(reviewed.industry, { system_id: null, sector_id: null, industry_group_id: null, industry_id: null, source_ids: [] });
+    assert.deepEqual(reviewed.classification, record.classification);
+    assert.deepEqual(reviewed.etf, record.etf);
+    const candidate = { ...fixture, instruments: [reviewed] };
+    assert.deepEqual(validateDataset(candidate), []);
+    assert.deepEqual(JSON.parse(createRelease(candidate).files['instruments.json']).instruments, [reviewed]);
+    reviewed.industry.system_id = 'financedatabase';
+    assert.match(validateDataset(candidate).join('\n'), /ETF cannot use company/);
   }
-  const files = await readdir(new URL('../data/instruments/', import.meta.url));
-  assert.equal(files.filter((name) => name.endsWith('.json')).length, 17);
 });

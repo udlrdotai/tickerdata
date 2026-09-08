@@ -8,11 +8,11 @@
 
 采用原生静态网页、每证券一个 JSON、集中词表、JSON Schema + 交叉引用校验、GitHub Actions 构建、Python 标准库消费。浏览器不依赖 Yahoo 或 AI，没有外部 CDN。
 
-包含 NVDA、CRWV、MSTR、TSLA、GOOG、GOOGL、ARM、BABA、TSM、BRK-B、SPY、QQQ、SOXL、KWEB、GLD、TLT、IBIT 共 17 条**待审核占位样例**。用户给出的分类语义只是审核起点；没有独立核实的名称、MIC、地区等保留为空，上市状态为 `unknown`。没有伪造审核人、日期、外部标识或置信度。
+初始化包含 NVDA、CRWV、MSTR、TSLA、GOOG、GOOGL、ARM、BABA、TSM、BRK-B、SPY、QQQ、SOXL、KWEB、GLD、TLT、IBIT 共 17 条**待审核占位样例**。用户给出的分类语义只是审核起点；没有独立核实的名称、MIC、地区等保留为空，上市状态为 `unknown`。维护者可以补齐资料、审核和新增证券，当前内容及审核状态以 `data/` 源记录为准，不要求一直保持初始化状态。
 
-公司行业采用独立的 FinanceDatabase **板块 → 行业组 → 行业** 体系，词表已包含 11 / 24 / 69 个节点，10 只股票已记录固定版本的上游分类与来源，仍待人工审核。GOOG / GOOGL 的上游电信分类标有疑点，不将导入视为事实确认。保留旧 Yahoo 体系、独立交易主题与标签；7 只 ETF 不套用公司行业。[完整中英分类明细与股票映射](docs/industry-classification.md)。
+公司行业采用独立的 FinanceDatabase **板块 → 行业组 → 行业** 体系，初始词表包含 11 / 24 / 69 个节点，10 只股票记录了固定版本的上游分类与来源，导入时均待人工审核。GOOG / GOOGL 的上游电信分类标有疑点，不将导入视为事实确认。保留旧 Yahoo 体系、独立交易主题与标签；ETF 不套用公司行业。[完整中英分类明细与股票映射](docs/industry-classification.md)。
 
-**因此首次构建的正式 `instruments.json` 和索引为空，这是预期行为。** 网页可以查看和维护所有待审核源记录。样例、单元测试中的虚构证券，都不能作为投资事实。
+**全部尚未审核时，正式 `instruments.json` 和索引为空；完成审核并发布后，只包含已审核记录。** 网页可以查看和维护所有源记录。样例、单元测试中的虚构证券，都不能作为投资事实。
 
 本项目使用公开仓库 [udlrdotai/tickerdata](https://github.com/udlrdotai/tickerdata)，已显式选择公开 Pages 部署，目标维护入口为 <https://udlrdotai.github.io/tickerdata/>。是否部署成功及对应 commit 以仓库 Actions 和 Pages 状态为准。AI 在线生成、yfinance 抓取、网页内创建 PR 均不属于此版实现。
 
@@ -39,6 +39,8 @@ npm run test:web
 ```
 
 该命令自动构建并启动临时本地测试服务，覆盖编辑、审核、导出、新增 ETF、主题合并及完整维护包重新导入，不需要更改正式源记录。Playwright 与浏览器不进入静态网页运行时。
+
+行为测试使用 `tests/fixtures/` 中独立的固定词表和测试证券，不把真实数据的数量、名称、审核状态或发布条数写死。浏览器测试服务在内存中提供测试数据，不覆盖 `data/` 或构建后的 `source-data.json`。真实源数据仍须通过 Schema、引用关系、审核状态迁移与发布规则检查；修复测试依赖不等于放宽审核要求。
 
 本地构建不代表发布。未初始化 Git或工作区有未提交修改时，manifest 的 `source_commit` 是 `null`；无可用 commit 时间时采用固定 Unix epoch，不伪造来源。可通过 `SOURCE_DATE_EPOCH` 指定确定的 UTC 秒数。
 
@@ -193,7 +195,7 @@ CI 构建 artifact 只保留 30 天，不作为长期版本地址。固定任意
 
 ## Python 消费
 
-无需 AI、Yahoo 或 pip 包。先有已审核记录才能成功查询；初始 NVDA 等样例查询返回未知是预期。
+无需 AI、Yahoo 或 pip 包。先有已审核并发布的记录才能成功查询；尚未审核的样例查询返回未知是预期，不要求 NVDA 等记录永远返回未知。
 
 ```sh
 python3 examples/consumer.py NVDA --snapshot dist/latest

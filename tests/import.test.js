@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, cp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { prepareImport, applyImport } from '../scripts/import.js';
 import { loadDataset } from '../scripts/cli.js';
 import { stableStringify } from '../src/model.js';
+import { createDatasetFixture } from './fixtures/dataset.js';
 
 test('single record and vocabulary imports are validated without touching source objects', async () => {
-  const current = await loadDataset();
+  const current = createDatasetFixture();
   const before = stableStringify(current);
   const record = structuredClone(current.instruments[0]);
   record.notes = 'A local correction';
@@ -25,7 +26,12 @@ test('single record and vocabulary imports are validated without touching source
 test('full bundle applies dependent vocabulary and record edits together and blocks stale preview', async () => {
   const folder = await mkdtemp(resolve('.import-test-'));
   try {
-    await cp(new URL('../data', import.meta.url), resolve(folder, 'data'), { recursive: true });
+    const fixture = createDatasetFixture();
+    await mkdir(resolve(folder, 'data/instruments'), { recursive: true });
+    await writeFile(resolve(folder, 'data/vocabulary.json'), stableStringify(fixture.vocabulary));
+    for (const record of fixture.instruments) {
+      await writeFile(resolve(folder, `data/instruments/${record.id}.json`), stableStringify(record));
+    }
     const before = await loadDataset(folder);
     const bundle = structuredClone(before);
     const source = bundle.vocabulary.themes[0].id;
@@ -50,4 +56,22 @@ test('full bundle applies dependent vocabulary and record edits together and blo
   } finally {
     await rm(folder, { recursive: true });
   }
+});
+
+test('reviewed record imports retain review protection and publish only after explicit re-review', () => {
+  const current = createDatasetFixture();
+  const record = current.instruments[0];
+  record.name.en = 'Synthetic reviewed company';
+  record.symbol.mic = 'XNAS';
+  record.review = { status: 'reviewed', reviewer: 'Synthetic reviewer', reviewed_at: '2026-09-01T00:00:00Z' };
+  const original = stableStringify(current);
+  const edited = structuredClone(record);
+  edited.notes = 'A correction after review';
+  assert.throws(() => prepareImport(current, edited), /edited reviewed data must become needs_review/);
+  edited.review.status = 'needs_review';
+  assert.equal(prepareImport(current, edited).candidate.instruments[0].review.status, 'needs_review');
+  edited.review.status = 'reviewed';
+  edited.review.reviewed_at = '2026-09-02T00:00:00Z';
+  assert.equal(prepareImport(current, edited).candidate.instruments[0].review.status, 'reviewed');
+  assert.equal(stableStringify(current), original);
 });

@@ -9,21 +9,31 @@ import { stableStringify } from '../src/model.js';
 import { validateDataset } from '../src/validation.js';
 import { createRelease } from '../src/release.js';
 import { prepareImport } from '../scripts/import.js';
+import { createDatasetFixture } from '../tests/fixtures/dataset.js';
 
 let browser;
 let server;
 let origin;
 let downloads;
 let initial;
+let sourceSnapshot;
 const errors = [];
 
 before(async () => {
   const root = resolve('dist');
-  initial = JSON.parse(await readFile(resolve(root, 'source-data.json'), 'utf8'));
+  sourceSnapshot = await readFile(resolve(root, 'source-data.json'));
+  initial = createDatasetFixture();
+  const fixtureJson = JSON.stringify(initial);
   downloads = resolve(`.browser-test-artifacts-${process.pid}-${Date.now()}`);
   await mkdir(downloads);
   server = createServer(async (request, response) => {
-    const path = resolve(root, `.${new URL(request.url, 'http://localhost').pathname === '/' ? '/index.html' : new URL(request.url, 'http://localhost').pathname}`);
+    const pathname = new URL(request.url, 'http://localhost').pathname;
+    if (pathname === '/source-data.json') {
+      response.setHeader('Content-Type', 'application/json');
+      response.end(fixtureJson);
+      return;
+    }
+    const path = resolve(root, `.${pathname === '/' ? '/index.html' : pathname}`);
     if (!path.startsWith(root + sep)) { response.writeHead(403).end(); return; }
     try {
       const bytes = await readFile(path);
@@ -44,10 +54,10 @@ after(async () => {
   if (server) await new Promise((resolveClose) => server.close(resolveClose));
   if (downloads) await rm(downloads, { recursive: true });
   assert.deepEqual(errors, []);
-  assert.deepEqual(JSON.parse(await readFile('dist/source-data.json', 'utf8')), initial);
+  assert.deepEqual(await readFile('dist/source-data.json'), sourceSnapshot);
 });
 
-async function pageForTest(t, options = {}) {
+async function pageForTest(t, options = {}, source = null) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, ...options });
   const page = await context.newPage();
   page.setDefaultTimeout(10000);
@@ -57,6 +67,12 @@ async function pageForTest(t, options = {}) {
   });
   page.on('dialog', (dialog) => dialog.accept());
   t.after(() => context.close());
+  if (source !== null) {
+    await page.route(`${origin}/source-data.json`, (route) => route.fulfill({
+      contentType: 'application/json',
+      body: Buffer.isBuffer(source) ? source : JSON.stringify(source),
+    }));
+  }
   await page.goto(origin);
   await page.getByRole('heading', { name: '证券目录', exact: true }).waitFor();
   return page;
@@ -83,6 +99,56 @@ test('search/filter works at desktop and narrow mobile widths without an externa
   await page.setViewportSize({ width: 390, height: 844 });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   assert.equal(await page.evaluate(() => localStorage.length), 0);
+});
+
+test('current built maintenance source loads and exports without assuming sample counts or review states', async (t) => {
+  const source = JSON.parse(sourceSnapshot);
+  const page = await pageForTest(t, {}, sourceSnapshot);
+  assert.ok((await page.locator('.status-line').textContent()).includes(`${source.instruments.length} 条`));
+  assert.equal(await page.locator('aside .record-button').count(), source.instruments.length);
+  const record = source.instruments.find((item) => item.review.status === 'reviewed') ?? source.instruments[0];
+  if (record) {
+    const index = source.instruments.findIndex((item) => item.id === record.id);
+    await page.locator('aside .record-button').nth(index).click();
+    assert.equal(await page.locator('section[aria-label="编辑详情"]').getByLabel('审核状态', { exact: true }).inputValue(), record.review.status);
+    assert.equal(await page.getByLabel('英文名称', { exact: true }).inputValue(), record.name.en ?? '');
+    const exported = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
+    assert.deepEqual(exported, record);
+  }
+});
+
+test('records already reviewed at startup downgrade on edit unless explicitly re-reviewed', async (t) => {
+  for (const explicit of [false, true]) {
+    await t.test(explicit ? 'explicit re-review' : 'ordinary edit', async (subtest) => {
+      const source = createDatasetFixture();
+      const nvda = source.instruments.find((item) => item.symbol.canonical === 'NVDA');
+      nvda.symbol.mic = 'XNAS';
+      nvda.review = { status: 'reviewed', reviewer: 'Synthetic prior reviewer', reviewed_at: '2026-01-02T03:04:05Z' };
+      assert.deepEqual(validateDataset(source), []);
+      const page = await pageForTest(subtest, {}, source);
+      await page.getByRole('button', { name: /^NVDA ·/ }).click();
+      assert.equal(await page.locator('section[aria-label="编辑详情"]').getByLabel('审核状态', { exact: true }).inputValue(), 'reviewed');
+      assert.equal(await page.getByRole('checkbox').isChecked(), false);
+      await page.getByLabel('英文名称', { exact: true }).fill('Synthetic edited startup record');
+      if (explicit) {
+        await page.getByLabel('审核人', { exact: true }).fill('Synthetic replacement reviewer');
+        await page.getByRole('checkbox').check();
+      }
+      await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
+      const edited = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
+      assert.equal(edited.review.status, explicit ? 'reviewed' : 'needs_review');
+      assert.equal(edited.name.en, 'Synthetic edited startup record');
+      assert.equal(edited.id, nvda.id);
+      assert.deepEqual(edited.classification, nvda.classification);
+      if (explicit) {
+        assert.equal(edited.review.reviewer, 'Synthetic replacement reviewer');
+        assert.ok(edited.review.reviewed_at);
+      }
+      assert.deepEqual(validateDataset({
+        ...source, instruments: source.instruments.map((item) => item.id === edited.id ? edited : item),
+      }), []);
+    });
+  }
 });
 
 test('record edit, explicit human review, downgrade, safe text, validation and export are real browser flows', async (t) => {
