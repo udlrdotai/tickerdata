@@ -1,152 +1,1173 @@
 {
-  "schema_version": "3.0.0",
   "industry_systems": [
     {
-      "id": "financedatabase",
-      "name_zh": "FinanceDatabase 行业分类",
+      "aliases": [
+        "FinanceDatabase"
+      ],
       "description": "Sector → Industry Group → Industry 三层分类，近似 GICS，但不是官方 GICS。固定来源：https://github.com/JerBouma/FinanceDatabase/blob/ac05d03dbed851a6fd3905a2e92ee036d0397760/compression/categories/categories.json；获取时间：2026-09-08T01:03:47Z。中文为本项目译名，英文原值见 aliases；不含子行业或其定义。",
-      "aliases": ["FinanceDatabase"],
-      "sectors": [
-        { "id": "communication-services", "name_zh": "通信服务", "description": "媒体、娱乐与电信服务板块。", "aliases": ["Communication Services"] },
-        { "id": "consumer-discretionary", "name_zh": "可选消费", "description": "汽车、耐用消费品、消费者服务与零售板块。", "aliases": ["Consumer Discretionary"] },
-        { "id": "consumer-staples", "name_zh": "必需消费", "description": "食品、饮料、烟草、家庭与个人用品板块。", "aliases": ["Consumer Staples"] },
-        { "id": "energy", "name_zh": "能源", "description": "能源设备、服务与燃料板块。", "aliases": ["Energy"] },
-        { "id": "financials", "name_zh": "金融", "description": "银行、多元金融与保险板块。", "aliases": ["Financials"] },
-        { "id": "health-care", "name_zh": "医疗保健", "description": "医疗设备、服务、制药与生命科学板块。", "aliases": ["Health Care"] },
-        { "id": "industrials", "name_zh": "工业", "description": "资本品、商业服务与运输板块。", "aliases": ["Industrials"] },
-        { "id": "information-technology", "name_zh": "信息技术", "description": "软件、技术硬件与半导体板块。", "aliases": ["Information Technology"] },
-        { "id": "materials", "name_zh": "材料", "description": "化学品、建材、包装、金属与林产品板块。", "aliases": ["Materials"] },
-        { "id": "real-estate", "name_zh": "房地产", "description": "房地产投资、管理与开发板块。", "aliases": ["Real Estate"] },
-        { "id": "utilities", "name_zh": "公用事业", "description": "电力、燃气、水务等公用事业板块。", "aliases": ["Utilities"] }
+      "id": "financedatabase",
+      "industries": [
+        {
+          "aliases": [
+            "Entertainment"
+          ],
+          "description": "媒体与娱乐组下的娱乐行业。",
+          "id": "entertainment",
+          "industry_group_id": "media-entertainment",
+          "name_zh": "娱乐",
+          "sector_id": "communication-services"
+        },
+        {
+          "aliases": [
+            "Interactive Media & Services"
+          ],
+          "description": "媒体与娱乐组下的互动媒体行业。",
+          "id": "interactive-media-services",
+          "industry_group_id": "media-entertainment",
+          "name_zh": "互动媒体与服务",
+          "sector_id": "communication-services"
+        },
+        {
+          "aliases": [
+            "Media"
+          ],
+          "description": "媒体与娱乐组下的媒体行业。",
+          "id": "media",
+          "industry_group_id": "media-entertainment",
+          "name_zh": "媒体",
+          "sector_id": "communication-services"
+        },
+        {
+          "aliases": [
+            "Diversified Telecommunication Services"
+          ],
+          "description": "电信服务组下的综合电信行业。",
+          "id": "diversified-telecommunication-services",
+          "industry_group_id": "telecommunication-services",
+          "name_zh": "综合电信服务",
+          "sector_id": "communication-services"
+        },
+        {
+          "aliases": [
+            "Wireless Telecommunication Services"
+          ],
+          "description": "电信服务组下的无线电信行业。",
+          "id": "wireless-telecommunication-services",
+          "industry_group_id": "telecommunication-services",
+          "name_zh": "无线电信服务",
+          "sector_id": "communication-services"
+        },
+        {
+          "aliases": [
+            "Auto Components"
+          ],
+          "description": "汽车与零部件组下的零部件行业。",
+          "id": "auto-components",
+          "industry_group_id": "automobiles-components",
+          "name_zh": "汽车零部件",
+          "sector_id": "consumer-discretionary"
+        },
+        {
+          "aliases": [
+            "Automobiles"
+          ],
+          "description": "汽车与零部件组下的汽车行业。",
+          "id": "automobiles",
+          "industry_group_id": "automobiles-components",
+          "name_zh": "汽车",
+          "sector_id": "consumer-discretionary"
+        },
+        {
+          "aliases": [
+            "Household Durables"
+          ],
+          "description": "耐用消费品与服装组下的家庭耐用品行业。",
+          "id": "household-durables",
+          "industry_group_id": "consumer-durables-apparel",
+          "name_zh": "家庭耐用消费品",
+          "sector_id": "consumer-discretionary"
+        },
+        {
+          "aliases": [
+            "Leisure Products"
+          ],
+          "description": "耐用消费品与服装组下的休闲用品行业。",
+          "id": "leisure-products",
+          "industry_group_id": "consumer-durables-apparel",
+          "name_zh": "休闲用品",
+          "sector_id": "consumer-discretionary"
+        },
+        {
+          "aliases": [
+            "Textiles, Apparel & Luxury Goods"
+          ],
+          "description": "耐用消费品与服装组下的纺织服装行业。",
+          "id": "textiles-apparel-luxury-goods",
+          "industry_group_id": "consumer-durables-apparel",
+          "name_zh": "纺织、服装与奢侈品",
+          "sector_id": "consumer-discretionary"
+        },
+        {
+          "aliases": [
+            "Diversified Consumer Services"
+          ],
+          "description": "消费者服务组下的多元服务行业。",
+          "id": "diversified-consumer-services",
+          "industry_group_id": "consumer-services",
+          "name_zh": "多元化消费者服务",
+          "sector_id": "consumer-discretionary"
+        },
+        {
+          "aliases": [
+            "Hotels, Restaurants & Leisure"
+          ],
+          "description": "消费者服务组下的酒店餐饮休闲行业。",
+          "id": "hotels-restaurants-leisure",
+          "industry_group_id": "consumer-services",
+          "name_zh": "酒店、餐饮与休闲",
+          "sector_id": "consumer-discretionary"
+        },
+        {
+          "aliases": [
+            "Distributors"
+          ],
+          "description": "零售组下的分销行业。",
+          "id": "distributors",
+          "industry_group_id": "retailing",
+          "name_zh": "分销商",
+          "sector_id": "consumer-discretionary"
+        },
+        {
+          "aliases": [
+            "Internet & Direct Marketing Retail"
+          ],
+          "description": "零售组下的互联网与直销行业。",
+          "id": "internet-direct-marketing-retail",
+          "industry_group_id": "retailing",
+          "name_zh": "互联网与直销零售",
+          "sector_id": "consumer-discretionary"
+        },
+        {
+          "aliases": [
+            "Multiline Retail"
+          ],
+          "description": "零售组下的多品类零售行业。",
+          "id": "multiline-retail",
+          "industry_group_id": "retailing",
+          "name_zh": "多品类零售",
+          "sector_id": "consumer-discretionary"
+        },
+        {
+          "aliases": [
+            "Specialty Retail"
+          ],
+          "description": "零售组下的专业零售行业。",
+          "id": "specialty-retail",
+          "industry_group_id": "retailing",
+          "name_zh": "专业零售",
+          "sector_id": "consumer-discretionary"
+        },
+        {
+          "aliases": [
+            "Food & Staples Retailing"
+          ],
+          "description": "必需消费零售组下的行业。",
+          "id": "food-staples-retailing",
+          "industry_group_id": "food-staples-retailing",
+          "name_zh": "食品与主要用品零售",
+          "sector_id": "consumer-staples"
+        },
+        {
+          "aliases": [
+            "Beverages"
+          ],
+          "description": "食品、饮料与烟草组下的饮料行业。",
+          "id": "beverages",
+          "industry_group_id": "food-beverage-tobacco",
+          "name_zh": "饮料",
+          "sector_id": "consumer-staples"
+        },
+        {
+          "aliases": [
+            "Food Products"
+          ],
+          "description": "食品、饮料与烟草组下的食品行业。",
+          "id": "food-products",
+          "industry_group_id": "food-beverage-tobacco",
+          "name_zh": "食品",
+          "sector_id": "consumer-staples"
+        },
+        {
+          "aliases": [
+            "Tobacco"
+          ],
+          "description": "食品、饮料与烟草组下的烟草行业。",
+          "id": "tobacco",
+          "industry_group_id": "food-beverage-tobacco",
+          "name_zh": "烟草",
+          "sector_id": "consumer-staples"
+        },
+        {
+          "aliases": [
+            "Household Products"
+          ],
+          "description": "家庭与个人用品组下的家庭用品行业。",
+          "id": "household-products",
+          "industry_group_id": "household-personal-products",
+          "name_zh": "家庭用品",
+          "sector_id": "consumer-staples"
+        },
+        {
+          "aliases": [
+            "Personal Products"
+          ],
+          "description": "家庭与个人用品组下的个人用品行业。",
+          "id": "personal-products",
+          "industry_group_id": "household-personal-products",
+          "name_zh": "个人用品",
+          "sector_id": "consumer-staples"
+        },
+        {
+          "aliases": [
+            "Energy Equipment & Services"
+          ],
+          "description": "能源组下的设备与服务行业。",
+          "id": "energy-equipment-services",
+          "industry_group_id": "energy",
+          "name_zh": "能源设备与服务",
+          "sector_id": "energy"
+        },
+        {
+          "aliases": [
+            "Oil, Gas & Consumable Fuels"
+          ],
+          "description": "能源组下的燃料行业。",
+          "id": "oil-gas-consumable-fuels",
+          "industry_group_id": "energy",
+          "name_zh": "石油、天然气与消耗性燃料",
+          "sector_id": "energy"
+        },
+        {
+          "aliases": [
+            "Banks"
+          ],
+          "description": "银行组下的银行行业。",
+          "id": "banks",
+          "industry_group_id": "banks",
+          "name_zh": "银行",
+          "sector_id": "financials"
+        },
+        {
+          "aliases": [
+            "Thrifts & Mortgage Finance"
+          ],
+          "description": "银行组下的储贷金融行业。",
+          "id": "thrifts-mortgage-finance",
+          "industry_group_id": "banks",
+          "name_zh": "储蓄与抵押贷款金融",
+          "sector_id": "financials"
+        },
+        {
+          "aliases": [
+            "Capital Markets"
+          ],
+          "description": "多元金融组下的资本市场行业。",
+          "id": "capital-markets",
+          "industry_group_id": "diversified-financials",
+          "name_zh": "资本市场",
+          "sector_id": "financials"
+        },
+        {
+          "aliases": [
+            "Consumer Finance"
+          ],
+          "description": "多元金融组下的消费金融行业。",
+          "id": "consumer-finance",
+          "industry_group_id": "diversified-financials",
+          "name_zh": "消费金融",
+          "sector_id": "financials"
+        },
+        {
+          "aliases": [
+            "Diversified Financial Services"
+          ],
+          "description": "多元金融组下的综合金融服务行业。",
+          "id": "diversified-financial-services",
+          "industry_group_id": "diversified-financials",
+          "name_zh": "多元化金融服务",
+          "sector_id": "financials"
+        },
+        {
+          "aliases": [
+            "Mortgage Real Estate Investment Trusts (REITs)"
+          ],
+          "description": "多元金融组下的抵押型 REIT 行业。",
+          "id": "mortgage-real-estate-investment-trusts-reits",
+          "industry_group_id": "diversified-financials",
+          "name_zh": "抵押型房地产投资信托",
+          "sector_id": "financials"
+        },
+        {
+          "aliases": [
+            "Insurance"
+          ],
+          "description": "保险组下的保险行业。",
+          "id": "insurance",
+          "industry_group_id": "insurance",
+          "name_zh": "保险",
+          "sector_id": "financials"
+        },
+        {
+          "aliases": [
+            "Health Care Equipment & Supplies"
+          ],
+          "description": "医疗设备与服务组下的设备用品行业。",
+          "id": "health-care-equipment-supplies",
+          "industry_group_id": "health-care-equipment-services",
+          "name_zh": "医疗设备与用品",
+          "sector_id": "health-care"
+        },
+        {
+          "aliases": [
+            "Health Care Providers & Services"
+          ],
+          "description": "医疗设备与服务组下的服务提供行业。",
+          "id": "health-care-providers-services",
+          "industry_group_id": "health-care-equipment-services",
+          "name_zh": "医疗服务提供商与服务",
+          "sector_id": "health-care"
+        },
+        {
+          "aliases": [
+            "Health Care Technology"
+          ],
+          "description": "医疗设备与服务组下的医疗技术行业。",
+          "id": "health-care-technology",
+          "industry_group_id": "health-care-equipment-services",
+          "name_zh": "医疗技术",
+          "sector_id": "health-care"
+        },
+        {
+          "aliases": [
+            "Biotechnology"
+          ],
+          "description": "制药、生物技术与生命科学组下的生物技术行业。",
+          "id": "biotechnology",
+          "industry_group_id": "pharmaceuticals-biotechnology-life-sciences",
+          "name_zh": "生物技术",
+          "sector_id": "health-care"
+        },
+        {
+          "aliases": [
+            "Life Sciences Tools & Services"
+          ],
+          "description": "制药、生物技术与生命科学组下的工具服务行业。",
+          "id": "life-sciences-tools-services",
+          "industry_group_id": "pharmaceuticals-biotechnology-life-sciences",
+          "name_zh": "生命科学工具与服务",
+          "sector_id": "health-care"
+        },
+        {
+          "aliases": [
+            "Pharmaceuticals"
+          ],
+          "description": "制药、生物技术与生命科学组下的制药行业。",
+          "id": "pharmaceuticals",
+          "industry_group_id": "pharmaceuticals-biotechnology-life-sciences",
+          "name_zh": "制药",
+          "sector_id": "health-care"
+        },
+        {
+          "aliases": [
+            "Aerospace & Defense"
+          ],
+          "description": "资本品组下的航空航天国防行业。",
+          "id": "aerospace-defense",
+          "industry_group_id": "capital-goods",
+          "name_zh": "航空航天与国防",
+          "sector_id": "industrials"
+        },
+        {
+          "aliases": [
+            "Building Products"
+          ],
+          "description": "资本品组下的建筑产品行业。",
+          "id": "building-products",
+          "industry_group_id": "capital-goods",
+          "name_zh": "建筑产品",
+          "sector_id": "industrials"
+        },
+        {
+          "aliases": [
+            "Construction & Engineering"
+          ],
+          "description": "资本品组下的建筑工程行业。",
+          "id": "construction-engineering",
+          "industry_group_id": "capital-goods",
+          "name_zh": "建筑与工程",
+          "sector_id": "industrials"
+        },
+        {
+          "aliases": [
+            "Electrical Equipment"
+          ],
+          "description": "资本品组下的电气设备行业。",
+          "id": "electrical-equipment",
+          "industry_group_id": "capital-goods",
+          "name_zh": "电气设备",
+          "sector_id": "industrials"
+        },
+        {
+          "aliases": [
+            "Industrial Conglomerates"
+          ],
+          "description": "资本品组下的综合工业行业。",
+          "id": "industrial-conglomerates",
+          "industry_group_id": "capital-goods",
+          "name_zh": "工业综合企业",
+          "sector_id": "industrials"
+        },
+        {
+          "aliases": [
+            "Machinery"
+          ],
+          "description": "资本品组下的机械行业。",
+          "id": "machinery",
+          "industry_group_id": "capital-goods",
+          "name_zh": "机械",
+          "sector_id": "industrials"
+        },
+        {
+          "aliases": [
+            "Trading Companies & Distributors"
+          ],
+          "description": "资本品组下的贸易分销行业。",
+          "id": "trading-companies-distributors",
+          "industry_group_id": "capital-goods",
+          "name_zh": "贸易公司与分销商",
+          "sector_id": "industrials"
+        },
+        {
+          "aliases": [
+            "Commercial Services & Supplies"
+          ],
+          "description": "商业与专业服务组下的商业服务行业。",
+          "id": "commercial-services-supplies",
+          "industry_group_id": "commercial-professional-services",
+          "name_zh": "商业服务与用品",
+          "sector_id": "industrials"
+        },
+        {
+          "aliases": [
+            "Professional Services"
+          ],
+          "description": "商业与专业服务组下的专业服务行业。",
+          "id": "professional-services",
+          "industry_group_id": "commercial-professional-services",
+          "name_zh": "专业服务",
+          "sector_id": "industrials"
+        },
+        {
+          "aliases": [
+            "Air Freight & Logistics"
+          ],
+          "description": "运输组下的航空货运物流行业。",
+          "id": "air-freight-logistics",
+          "industry_group_id": "transportation",
+          "name_zh": "航空货运与物流",
+          "sector_id": "industrials"
+        },
+        {
+          "aliases": [
+            "Airlines"
+          ],
+          "description": "运输组下的航空行业。",
+          "id": "airlines",
+          "industry_group_id": "transportation",
+          "name_zh": "航空公司",
+          "sector_id": "industrials"
+        },
+        {
+          "aliases": [
+            "Marine"
+          ],
+          "description": "运输组下的海运行业。",
+          "id": "marine",
+          "industry_group_id": "transportation",
+          "name_zh": "海运",
+          "sector_id": "industrials"
+        },
+        {
+          "aliases": [
+            "Road & Rail"
+          ],
+          "description": "运输组下的公路铁路行业。",
+          "id": "road-rail",
+          "industry_group_id": "transportation",
+          "name_zh": "公路与铁路",
+          "sector_id": "industrials"
+        },
+        {
+          "aliases": [
+            "Transportation Infrastructure"
+          ],
+          "description": "运输组下的基础设施行业。",
+          "id": "transportation-infrastructure",
+          "industry_group_id": "transportation",
+          "name_zh": "交通基础设施",
+          "sector_id": "industrials"
+        },
+        {
+          "aliases": [
+            "Semiconductors & Semiconductor Equipment"
+          ],
+          "description": "半导体与半导体设备组下的行业。",
+          "id": "semiconductors-semiconductor-equipment",
+          "industry_group_id": "semiconductors-semiconductor-equipment",
+          "name_zh": "半导体与半导体设备",
+          "sector_id": "information-technology"
+        },
+        {
+          "aliases": [
+            "IT Services"
+          ],
+          "description": "软件与服务组下的信息技术服务行业。",
+          "id": "it-services",
+          "industry_group_id": "software-services",
+          "name_zh": "信息技术服务",
+          "sector_id": "information-technology"
+        },
+        {
+          "aliases": [
+            "Software"
+          ],
+          "description": "软件与服务组下的软件行业。",
+          "id": "software",
+          "industry_group_id": "software-services",
+          "name_zh": "软件",
+          "sector_id": "information-technology"
+        },
+        {
+          "aliases": [
+            "Communications Equipment"
+          ],
+          "description": "技术硬件与设备组下的通信设备行业。",
+          "id": "communications-equipment",
+          "industry_group_id": "technology-hardware-equipment",
+          "name_zh": "通信设备",
+          "sector_id": "information-technology"
+        },
+        {
+          "aliases": [
+            "Electronic Equipment, Instruments & Components"
+          ],
+          "description": "技术硬件与设备组下的电子设备行业。",
+          "id": "electronic-equipment-instruments-components",
+          "industry_group_id": "technology-hardware-equipment",
+          "name_zh": "电子设备、仪器与元件",
+          "sector_id": "information-technology"
+        },
+        {
+          "aliases": [
+            "Technology Hardware, Storage & Peripherals"
+          ],
+          "description": "技术硬件与设备组下的硬件存储行业。",
+          "id": "technology-hardware-storage-peripherals",
+          "industry_group_id": "technology-hardware-equipment",
+          "name_zh": "技术硬件、存储与外围设备",
+          "sector_id": "information-technology"
+        },
+        {
+          "aliases": [
+            "Chemicals"
+          ],
+          "description": "材料组下的化学品行业。",
+          "id": "chemicals",
+          "industry_group_id": "materials",
+          "name_zh": "化学品",
+          "sector_id": "materials"
+        },
+        {
+          "aliases": [
+            "Construction Materials"
+          ],
+          "description": "材料组下的建材行业。",
+          "id": "construction-materials",
+          "industry_group_id": "materials",
+          "name_zh": "建筑材料",
+          "sector_id": "materials"
+        },
+        {
+          "aliases": [
+            "Containers & Packaging"
+          ],
+          "description": "材料组下的容器包装行业。",
+          "id": "containers-packaging",
+          "industry_group_id": "materials",
+          "name_zh": "容器与包装",
+          "sector_id": "materials"
+        },
+        {
+          "aliases": [
+            "Metals & Mining"
+          ],
+          "description": "材料组下的金属采矿行业。",
+          "id": "metals-mining",
+          "industry_group_id": "materials",
+          "name_zh": "金属与采矿",
+          "sector_id": "materials"
+        },
+        {
+          "aliases": [
+            "Paper & Forest Products"
+          ],
+          "description": "材料组下的纸与林产品行业。",
+          "id": "paper-forest-products",
+          "industry_group_id": "materials",
+          "name_zh": "纸与林产品",
+          "sector_id": "materials"
+        },
+        {
+          "aliases": [
+            "Equity Real Estate Investment Trusts (REITs)"
+          ],
+          "description": "房地产组下的权益型 REIT 行业。",
+          "id": "equity-real-estate-investment-trusts-reits",
+          "industry_group_id": "real-estate",
+          "name_zh": "权益型房地产投资信托",
+          "sector_id": "real-estate"
+        },
+        {
+          "aliases": [
+            "Real Estate Management & Development"
+          ],
+          "description": "房地产组下的管理开发行业。",
+          "id": "real-estate-management-development",
+          "industry_group_id": "real-estate",
+          "name_zh": "房地产管理与开发",
+          "sector_id": "real-estate"
+        },
+        {
+          "aliases": [
+            "Electric Utilities"
+          ],
+          "description": "公用事业组下的电力行业。",
+          "id": "electric-utilities",
+          "industry_group_id": "utilities",
+          "name_zh": "电力公用事业",
+          "sector_id": "utilities"
+        },
+        {
+          "aliases": [
+            "Gas Utilities"
+          ],
+          "description": "公用事业组下的燃气行业。",
+          "id": "gas-utilities",
+          "industry_group_id": "utilities",
+          "name_zh": "燃气公用事业",
+          "sector_id": "utilities"
+        },
+        {
+          "aliases": [
+            "Independent Power and Renewable Electricity Producers"
+          ],
+          "description": "公用事业组下的独立与可再生能源发电行业。",
+          "id": "independent-power-renewable-electricity-producers",
+          "industry_group_id": "utilities",
+          "name_zh": "独立发电商与可再生能源发电商",
+          "sector_id": "utilities"
+        },
+        {
+          "aliases": [
+            "Multi-Utilities"
+          ],
+          "description": "公用事业组下的综合公用事业行业。",
+          "id": "multi-utilities",
+          "industry_group_id": "utilities",
+          "name_zh": "综合公用事业",
+          "sector_id": "utilities"
+        },
+        {
+          "aliases": [
+            "Water Utilities"
+          ],
+          "description": "公用事业组下的水务行业。",
+          "id": "water-utilities",
+          "industry_group_id": "utilities",
+          "name_zh": "水务公用事业",
+          "sector_id": "utilities"
+        }
       ],
       "industry_groups": [
-        { "id": "media-entertainment", "name_zh": "媒体与娱乐", "description": "通信服务下的媒体与娱乐行业组。", "aliases": ["Media & Entertainment"], "sector_id": "communication-services" },
-        { "id": "telecommunication-services", "name_zh": "电信服务", "description": "通信服务下的电信行业组。", "aliases": ["Telecommunication Services"], "sector_id": "communication-services" },
-        { "id": "automobiles-components", "name_zh": "汽车与零部件", "description": "可选消费下的汽车产业行业组。", "aliases": ["Automobiles & Components"], "sector_id": "consumer-discretionary" },
-        { "id": "consumer-durables-apparel", "name_zh": "耐用消费品与服装", "description": "可选消费下的耐用品与服装行业组。", "aliases": ["Consumer Durables & Apparel"], "sector_id": "consumer-discretionary" },
-        { "id": "consumer-services", "name_zh": "消费者服务", "description": "可选消费下的消费者服务行业组。", "aliases": ["Consumer Services"], "sector_id": "consumer-discretionary" },
-        { "id": "retailing", "name_zh": "零售", "description": "可选消费下的零售行业组。", "aliases": ["Retailing"], "sector_id": "consumer-discretionary" },
-        { "id": "food-staples-retailing", "name_zh": "食品与主要用品零售", "description": "必需消费下的零售行业组。", "aliases": ["Food & Staples Retailing"], "sector_id": "consumer-staples" },
-        { "id": "food-beverage-tobacco", "name_zh": "食品、饮料与烟草", "description": "必需消费下的食品、饮料与烟草行业组。", "aliases": ["Food, Beverage & Tobacco"], "sector_id": "consumer-staples" },
-        { "id": "household-personal-products", "name_zh": "家庭与个人用品", "description": "必需消费下的家庭与个人用品行业组。", "aliases": ["Household & Personal Products"], "sector_id": "consumer-staples" },
-        { "id": "energy", "name_zh": "能源", "description": "能源板块下的行业组。", "aliases": ["Energy"], "sector_id": "energy" },
-        { "id": "banks", "name_zh": "银行", "description": "金融下的银行与储贷行业组。", "aliases": ["Banks"], "sector_id": "financials" },
-        { "id": "diversified-financials", "name_zh": "多元金融", "description": "金融下的多元金融行业组。", "aliases": ["Diversified Financials"], "sector_id": "financials" },
-        { "id": "insurance", "name_zh": "保险", "description": "金融下的保险行业组。", "aliases": ["Insurance"], "sector_id": "financials" },
-        { "id": "health-care-equipment-services", "name_zh": "医疗设备与服务", "description": "医疗保健下的设备与服务行业组。", "aliases": ["Health Care Equipment & Services"], "sector_id": "health-care" },
-        { "id": "pharmaceuticals-biotechnology-life-sciences", "name_zh": "制药、生物技术与生命科学", "description": "医疗保健下的制药与生命科学行业组。", "aliases": ["Pharmaceuticals, Biotechnology & Life Sciences"], "sector_id": "health-care" },
-        { "id": "capital-goods", "name_zh": "资本品", "description": "工业下的资本品行业组。", "aliases": ["Capital Goods"], "sector_id": "industrials" },
-        { "id": "commercial-professional-services", "name_zh": "商业与专业服务", "description": "工业下的商业与专业服务行业组。", "aliases": ["Commercial & Professional Services"], "sector_id": "industrials" },
-        { "id": "transportation", "name_zh": "运输", "description": "工业下的运输与交通基础设施行业组。", "aliases": ["Transportation"], "sector_id": "industrials" },
-        { "id": "semiconductors-semiconductor-equipment", "name_zh": "半导体与半导体设备", "description": "信息技术下的半导体行业组。", "aliases": ["Semiconductors & Semiconductor Equipment"], "sector_id": "information-technology" },
-        { "id": "software-services", "name_zh": "软件与服务", "description": "信息技术下的软件与服务行业组。", "aliases": ["Software & Services"], "sector_id": "information-technology" },
-        { "id": "technology-hardware-equipment", "name_zh": "技术硬件与设备", "description": "信息技术下的硬件与设备行业组。", "aliases": ["Technology Hardware & Equipment"], "sector_id": "information-technology" },
-        { "id": "materials", "name_zh": "材料", "description": "材料板块下的行业组。", "aliases": ["Materials"], "sector_id": "materials" },
-        { "id": "real-estate", "name_zh": "房地产", "description": "房地产板块下的行业组。", "aliases": ["Real Estate"], "sector_id": "real-estate" },
-        { "id": "utilities", "name_zh": "公用事业", "description": "公用事业板块下的行业组。", "aliases": ["Utilities"], "sector_id": "utilities" }
+        {
+          "aliases": [
+            "Media & Entertainment"
+          ],
+          "description": "通信服务下的媒体与娱乐行业组。",
+          "id": "media-entertainment",
+          "name_zh": "媒体与娱乐",
+          "sector_id": "communication-services"
+        },
+        {
+          "aliases": [
+            "Telecommunication Services"
+          ],
+          "description": "通信服务下的电信行业组。",
+          "id": "telecommunication-services",
+          "name_zh": "电信服务",
+          "sector_id": "communication-services"
+        },
+        {
+          "aliases": [
+            "Automobiles & Components"
+          ],
+          "description": "可选消费下的汽车产业行业组。",
+          "id": "automobiles-components",
+          "name_zh": "汽车与零部件",
+          "sector_id": "consumer-discretionary"
+        },
+        {
+          "aliases": [
+            "Consumer Durables & Apparel"
+          ],
+          "description": "可选消费下的耐用品与服装行业组。",
+          "id": "consumer-durables-apparel",
+          "name_zh": "耐用消费品与服装",
+          "sector_id": "consumer-discretionary"
+        },
+        {
+          "aliases": [
+            "Consumer Services"
+          ],
+          "description": "可选消费下的消费者服务行业组。",
+          "id": "consumer-services",
+          "name_zh": "消费者服务",
+          "sector_id": "consumer-discretionary"
+        },
+        {
+          "aliases": [
+            "Retailing"
+          ],
+          "description": "可选消费下的零售行业组。",
+          "id": "retailing",
+          "name_zh": "零售",
+          "sector_id": "consumer-discretionary"
+        },
+        {
+          "aliases": [
+            "Food & Staples Retailing"
+          ],
+          "description": "必需消费下的零售行业组。",
+          "id": "food-staples-retailing",
+          "name_zh": "食品与主要用品零售",
+          "sector_id": "consumer-staples"
+        },
+        {
+          "aliases": [
+            "Food, Beverage & Tobacco"
+          ],
+          "description": "必需消费下的食品、饮料与烟草行业组。",
+          "id": "food-beverage-tobacco",
+          "name_zh": "食品、饮料与烟草",
+          "sector_id": "consumer-staples"
+        },
+        {
+          "aliases": [
+            "Household & Personal Products"
+          ],
+          "description": "必需消费下的家庭与个人用品行业组。",
+          "id": "household-personal-products",
+          "name_zh": "家庭与个人用品",
+          "sector_id": "consumer-staples"
+        },
+        {
+          "aliases": [
+            "Energy"
+          ],
+          "description": "能源板块下的行业组。",
+          "id": "energy",
+          "name_zh": "能源",
+          "sector_id": "energy"
+        },
+        {
+          "aliases": [
+            "Banks"
+          ],
+          "description": "金融下的银行与储贷行业组。",
+          "id": "banks",
+          "name_zh": "银行",
+          "sector_id": "financials"
+        },
+        {
+          "aliases": [
+            "Diversified Financials"
+          ],
+          "description": "金融下的多元金融行业组。",
+          "id": "diversified-financials",
+          "name_zh": "多元金融",
+          "sector_id": "financials"
+        },
+        {
+          "aliases": [
+            "Insurance"
+          ],
+          "description": "金融下的保险行业组。",
+          "id": "insurance",
+          "name_zh": "保险",
+          "sector_id": "financials"
+        },
+        {
+          "aliases": [
+            "Health Care Equipment & Services"
+          ],
+          "description": "医疗保健下的设备与服务行业组。",
+          "id": "health-care-equipment-services",
+          "name_zh": "医疗设备与服务",
+          "sector_id": "health-care"
+        },
+        {
+          "aliases": [
+            "Pharmaceuticals, Biotechnology & Life Sciences"
+          ],
+          "description": "医疗保健下的制药与生命科学行业组。",
+          "id": "pharmaceuticals-biotechnology-life-sciences",
+          "name_zh": "制药、生物技术与生命科学",
+          "sector_id": "health-care"
+        },
+        {
+          "aliases": [
+            "Capital Goods"
+          ],
+          "description": "工业下的资本品行业组。",
+          "id": "capital-goods",
+          "name_zh": "资本品",
+          "sector_id": "industrials"
+        },
+        {
+          "aliases": [
+            "Commercial & Professional Services"
+          ],
+          "description": "工业下的商业与专业服务行业组。",
+          "id": "commercial-professional-services",
+          "name_zh": "商业与专业服务",
+          "sector_id": "industrials"
+        },
+        {
+          "aliases": [
+            "Transportation"
+          ],
+          "description": "工业下的运输与交通基础设施行业组。",
+          "id": "transportation",
+          "name_zh": "运输",
+          "sector_id": "industrials"
+        },
+        {
+          "aliases": [
+            "Semiconductors & Semiconductor Equipment"
+          ],
+          "description": "信息技术下的半导体行业组。",
+          "id": "semiconductors-semiconductor-equipment",
+          "name_zh": "半导体与半导体设备",
+          "sector_id": "information-technology"
+        },
+        {
+          "aliases": [
+            "Software & Services"
+          ],
+          "description": "信息技术下的软件与服务行业组。",
+          "id": "software-services",
+          "name_zh": "软件与服务",
+          "sector_id": "information-technology"
+        },
+        {
+          "aliases": [
+            "Technology Hardware & Equipment"
+          ],
+          "description": "信息技术下的硬件与设备行业组。",
+          "id": "technology-hardware-equipment",
+          "name_zh": "技术硬件与设备",
+          "sector_id": "information-technology"
+        },
+        {
+          "aliases": [
+            "Materials"
+          ],
+          "description": "材料板块下的行业组。",
+          "id": "materials",
+          "name_zh": "材料",
+          "sector_id": "materials"
+        },
+        {
+          "aliases": [
+            "Real Estate"
+          ],
+          "description": "房地产板块下的行业组。",
+          "id": "real-estate",
+          "name_zh": "房地产",
+          "sector_id": "real-estate"
+        },
+        {
+          "aliases": [
+            "Utilities"
+          ],
+          "description": "公用事业板块下的行业组。",
+          "id": "utilities",
+          "name_zh": "公用事业",
+          "sector_id": "utilities"
+        }
       ],
-      "industries": [
-        { "id": "entertainment", "name_zh": "娱乐", "description": "媒体与娱乐组下的娱乐行业。", "aliases": ["Entertainment"], "sector_id": "communication-services", "industry_group_id": "media-entertainment" },
-        { "id": "interactive-media-services", "name_zh": "互动媒体与服务", "description": "媒体与娱乐组下的互动媒体行业。", "aliases": ["Interactive Media & Services"], "sector_id": "communication-services", "industry_group_id": "media-entertainment" },
-        { "id": "media", "name_zh": "媒体", "description": "媒体与娱乐组下的媒体行业。", "aliases": ["Media"], "sector_id": "communication-services", "industry_group_id": "media-entertainment" },
-        { "id": "diversified-telecommunication-services", "name_zh": "综合电信服务", "description": "电信服务组下的综合电信行业。", "aliases": ["Diversified Telecommunication Services"], "sector_id": "communication-services", "industry_group_id": "telecommunication-services" },
-        { "id": "wireless-telecommunication-services", "name_zh": "无线电信服务", "description": "电信服务组下的无线电信行业。", "aliases": ["Wireless Telecommunication Services"], "sector_id": "communication-services", "industry_group_id": "telecommunication-services" },
-        { "id": "auto-components", "name_zh": "汽车零部件", "description": "汽车与零部件组下的零部件行业。", "aliases": ["Auto Components"], "sector_id": "consumer-discretionary", "industry_group_id": "automobiles-components" },
-        { "id": "automobiles", "name_zh": "汽车", "description": "汽车与零部件组下的汽车行业。", "aliases": ["Automobiles"], "sector_id": "consumer-discretionary", "industry_group_id": "automobiles-components" },
-        { "id": "household-durables", "name_zh": "家庭耐用消费品", "description": "耐用消费品与服装组下的家庭耐用品行业。", "aliases": ["Household Durables"], "sector_id": "consumer-discretionary", "industry_group_id": "consumer-durables-apparel" },
-        { "id": "leisure-products", "name_zh": "休闲用品", "description": "耐用消费品与服装组下的休闲用品行业。", "aliases": ["Leisure Products"], "sector_id": "consumer-discretionary", "industry_group_id": "consumer-durables-apparel" },
-        { "id": "textiles-apparel-luxury-goods", "name_zh": "纺织、服装与奢侈品", "description": "耐用消费品与服装组下的纺织服装行业。", "aliases": ["Textiles, Apparel & Luxury Goods"], "sector_id": "consumer-discretionary", "industry_group_id": "consumer-durables-apparel" },
-        { "id": "diversified-consumer-services", "name_zh": "多元化消费者服务", "description": "消费者服务组下的多元服务行业。", "aliases": ["Diversified Consumer Services"], "sector_id": "consumer-discretionary", "industry_group_id": "consumer-services" },
-        { "id": "hotels-restaurants-leisure", "name_zh": "酒店、餐饮与休闲", "description": "消费者服务组下的酒店餐饮休闲行业。", "aliases": ["Hotels, Restaurants & Leisure"], "sector_id": "consumer-discretionary", "industry_group_id": "consumer-services" },
-        { "id": "distributors", "name_zh": "分销商", "description": "零售组下的分销行业。", "aliases": ["Distributors"], "sector_id": "consumer-discretionary", "industry_group_id": "retailing" },
-        { "id": "internet-direct-marketing-retail", "name_zh": "互联网与直销零售", "description": "零售组下的互联网与直销行业。", "aliases": ["Internet & Direct Marketing Retail"], "sector_id": "consumer-discretionary", "industry_group_id": "retailing" },
-        { "id": "multiline-retail", "name_zh": "多品类零售", "description": "零售组下的多品类零售行业。", "aliases": ["Multiline Retail"], "sector_id": "consumer-discretionary", "industry_group_id": "retailing" },
-        { "id": "specialty-retail", "name_zh": "专业零售", "description": "零售组下的专业零售行业。", "aliases": ["Specialty Retail"], "sector_id": "consumer-discretionary", "industry_group_id": "retailing" },
-        { "id": "food-staples-retailing", "name_zh": "食品与主要用品零售", "description": "必需消费零售组下的行业。", "aliases": ["Food & Staples Retailing"], "sector_id": "consumer-staples", "industry_group_id": "food-staples-retailing" },
-        { "id": "beverages", "name_zh": "饮料", "description": "食品、饮料与烟草组下的饮料行业。", "aliases": ["Beverages"], "sector_id": "consumer-staples", "industry_group_id": "food-beverage-tobacco" },
-        { "id": "food-products", "name_zh": "食品", "description": "食品、饮料与烟草组下的食品行业。", "aliases": ["Food Products"], "sector_id": "consumer-staples", "industry_group_id": "food-beverage-tobacco" },
-        { "id": "tobacco", "name_zh": "烟草", "description": "食品、饮料与烟草组下的烟草行业。", "aliases": ["Tobacco"], "sector_id": "consumer-staples", "industry_group_id": "food-beverage-tobacco" },
-        { "id": "household-products", "name_zh": "家庭用品", "description": "家庭与个人用品组下的家庭用品行业。", "aliases": ["Household Products"], "sector_id": "consumer-staples", "industry_group_id": "household-personal-products" },
-        { "id": "personal-products", "name_zh": "个人用品", "description": "家庭与个人用品组下的个人用品行业。", "aliases": ["Personal Products"], "sector_id": "consumer-staples", "industry_group_id": "household-personal-products" },
-        { "id": "energy-equipment-services", "name_zh": "能源设备与服务", "description": "能源组下的设备与服务行业。", "aliases": ["Energy Equipment & Services"], "sector_id": "energy", "industry_group_id": "energy" },
-        { "id": "oil-gas-consumable-fuels", "name_zh": "石油、天然气与消耗性燃料", "description": "能源组下的燃料行业。", "aliases": ["Oil, Gas & Consumable Fuels"], "sector_id": "energy", "industry_group_id": "energy" },
-        { "id": "banks", "name_zh": "银行", "description": "银行组下的银行行业。", "aliases": ["Banks"], "sector_id": "financials", "industry_group_id": "banks" },
-        { "id": "thrifts-mortgage-finance", "name_zh": "储蓄与抵押贷款金融", "description": "银行组下的储贷金融行业。", "aliases": ["Thrifts & Mortgage Finance"], "sector_id": "financials", "industry_group_id": "banks" },
-        { "id": "capital-markets", "name_zh": "资本市场", "description": "多元金融组下的资本市场行业。", "aliases": ["Capital Markets"], "sector_id": "financials", "industry_group_id": "diversified-financials" },
-        { "id": "consumer-finance", "name_zh": "消费金融", "description": "多元金融组下的消费金融行业。", "aliases": ["Consumer Finance"], "sector_id": "financials", "industry_group_id": "diversified-financials" },
-        { "id": "diversified-financial-services", "name_zh": "多元化金融服务", "description": "多元金融组下的综合金融服务行业。", "aliases": ["Diversified Financial Services"], "sector_id": "financials", "industry_group_id": "diversified-financials" },
-        { "id": "mortgage-real-estate-investment-trusts-reits", "name_zh": "抵押型房地产投资信托", "description": "多元金融组下的抵押型 REIT 行业。", "aliases": ["Mortgage Real Estate Investment Trusts (REITs)"], "sector_id": "financials", "industry_group_id": "diversified-financials" },
-        { "id": "insurance", "name_zh": "保险", "description": "保险组下的保险行业。", "aliases": ["Insurance"], "sector_id": "financials", "industry_group_id": "insurance" },
-        { "id": "health-care-equipment-supplies", "name_zh": "医疗设备与用品", "description": "医疗设备与服务组下的设备用品行业。", "aliases": ["Health Care Equipment & Supplies"], "sector_id": "health-care", "industry_group_id": "health-care-equipment-services" },
-        { "id": "health-care-providers-services", "name_zh": "医疗服务提供商与服务", "description": "医疗设备与服务组下的服务提供行业。", "aliases": ["Health Care Providers & Services"], "sector_id": "health-care", "industry_group_id": "health-care-equipment-services" },
-        { "id": "health-care-technology", "name_zh": "医疗技术", "description": "医疗设备与服务组下的医疗技术行业。", "aliases": ["Health Care Technology"], "sector_id": "health-care", "industry_group_id": "health-care-equipment-services" },
-        { "id": "biotechnology", "name_zh": "生物技术", "description": "制药、生物技术与生命科学组下的生物技术行业。", "aliases": ["Biotechnology"], "sector_id": "health-care", "industry_group_id": "pharmaceuticals-biotechnology-life-sciences" },
-        { "id": "life-sciences-tools-services", "name_zh": "生命科学工具与服务", "description": "制药、生物技术与生命科学组下的工具服务行业。", "aliases": ["Life Sciences Tools & Services"], "sector_id": "health-care", "industry_group_id": "pharmaceuticals-biotechnology-life-sciences" },
-        { "id": "pharmaceuticals", "name_zh": "制药", "description": "制药、生物技术与生命科学组下的制药行业。", "aliases": ["Pharmaceuticals"], "sector_id": "health-care", "industry_group_id": "pharmaceuticals-biotechnology-life-sciences" },
-        { "id": "aerospace-defense", "name_zh": "航空航天与国防", "description": "资本品组下的航空航天国防行业。", "aliases": ["Aerospace & Defense"], "sector_id": "industrials", "industry_group_id": "capital-goods" },
-        { "id": "building-products", "name_zh": "建筑产品", "description": "资本品组下的建筑产品行业。", "aliases": ["Building Products"], "sector_id": "industrials", "industry_group_id": "capital-goods" },
-        { "id": "construction-engineering", "name_zh": "建筑与工程", "description": "资本品组下的建筑工程行业。", "aliases": ["Construction & Engineering"], "sector_id": "industrials", "industry_group_id": "capital-goods" },
-        { "id": "electrical-equipment", "name_zh": "电气设备", "description": "资本品组下的电气设备行业。", "aliases": ["Electrical Equipment"], "sector_id": "industrials", "industry_group_id": "capital-goods" },
-        { "id": "industrial-conglomerates", "name_zh": "工业综合企业", "description": "资本品组下的综合工业行业。", "aliases": ["Industrial Conglomerates"], "sector_id": "industrials", "industry_group_id": "capital-goods" },
-        { "id": "machinery", "name_zh": "机械", "description": "资本品组下的机械行业。", "aliases": ["Machinery"], "sector_id": "industrials", "industry_group_id": "capital-goods" },
-        { "id": "trading-companies-distributors", "name_zh": "贸易公司与分销商", "description": "资本品组下的贸易分销行业。", "aliases": ["Trading Companies & Distributors"], "sector_id": "industrials", "industry_group_id": "capital-goods" },
-        { "id": "commercial-services-supplies", "name_zh": "商业服务与用品", "description": "商业与专业服务组下的商业服务行业。", "aliases": ["Commercial Services & Supplies"], "sector_id": "industrials", "industry_group_id": "commercial-professional-services" },
-        { "id": "professional-services", "name_zh": "专业服务", "description": "商业与专业服务组下的专业服务行业。", "aliases": ["Professional Services"], "sector_id": "industrials", "industry_group_id": "commercial-professional-services" },
-        { "id": "air-freight-logistics", "name_zh": "航空货运与物流", "description": "运输组下的航空货运物流行业。", "aliases": ["Air Freight & Logistics"], "sector_id": "industrials", "industry_group_id": "transportation" },
-        { "id": "airlines", "name_zh": "航空公司", "description": "运输组下的航空行业。", "aliases": ["Airlines"], "sector_id": "industrials", "industry_group_id": "transportation" },
-        { "id": "marine", "name_zh": "海运", "description": "运输组下的海运行业。", "aliases": ["Marine"], "sector_id": "industrials", "industry_group_id": "transportation" },
-        { "id": "road-rail", "name_zh": "公路与铁路", "description": "运输组下的公路铁路行业。", "aliases": ["Road & Rail"], "sector_id": "industrials", "industry_group_id": "transportation" },
-        { "id": "transportation-infrastructure", "name_zh": "交通基础设施", "description": "运输组下的基础设施行业。", "aliases": ["Transportation Infrastructure"], "sector_id": "industrials", "industry_group_id": "transportation" },
-        { "id": "semiconductors-semiconductor-equipment", "name_zh": "半导体与半导体设备", "description": "半导体与半导体设备组下的行业。", "aliases": ["Semiconductors & Semiconductor Equipment"], "sector_id": "information-technology", "industry_group_id": "semiconductors-semiconductor-equipment" },
-        { "id": "it-services", "name_zh": "信息技术服务", "description": "软件与服务组下的信息技术服务行业。", "aliases": ["IT Services"], "sector_id": "information-technology", "industry_group_id": "software-services" },
-        { "id": "software", "name_zh": "软件", "description": "软件与服务组下的软件行业。", "aliases": ["Software"], "sector_id": "information-technology", "industry_group_id": "software-services" },
-        { "id": "communications-equipment", "name_zh": "通信设备", "description": "技术硬件与设备组下的通信设备行业。", "aliases": ["Communications Equipment"], "sector_id": "information-technology", "industry_group_id": "technology-hardware-equipment" },
-        { "id": "electronic-equipment-instruments-components", "name_zh": "电子设备、仪器与元件", "description": "技术硬件与设备组下的电子设备行业。", "aliases": ["Electronic Equipment, Instruments & Components"], "sector_id": "information-technology", "industry_group_id": "technology-hardware-equipment" },
-        { "id": "technology-hardware-storage-peripherals", "name_zh": "技术硬件、存储与外围设备", "description": "技术硬件与设备组下的硬件存储行业。", "aliases": ["Technology Hardware, Storage & Peripherals"], "sector_id": "information-technology", "industry_group_id": "technology-hardware-equipment" },
-        { "id": "chemicals", "name_zh": "化学品", "description": "材料组下的化学品行业。", "aliases": ["Chemicals"], "sector_id": "materials", "industry_group_id": "materials" },
-        { "id": "construction-materials", "name_zh": "建筑材料", "description": "材料组下的建材行业。", "aliases": ["Construction Materials"], "sector_id": "materials", "industry_group_id": "materials" },
-        { "id": "containers-packaging", "name_zh": "容器与包装", "description": "材料组下的容器包装行业。", "aliases": ["Containers & Packaging"], "sector_id": "materials", "industry_group_id": "materials" },
-        { "id": "metals-mining", "name_zh": "金属与采矿", "description": "材料组下的金属采矿行业。", "aliases": ["Metals & Mining"], "sector_id": "materials", "industry_group_id": "materials" },
-        { "id": "paper-forest-products", "name_zh": "纸与林产品", "description": "材料组下的纸与林产品行业。", "aliases": ["Paper & Forest Products"], "sector_id": "materials", "industry_group_id": "materials" },
-        { "id": "equity-real-estate-investment-trusts-reits", "name_zh": "权益型房地产投资信托", "description": "房地产组下的权益型 REIT 行业。", "aliases": ["Equity Real Estate Investment Trusts (REITs)"], "sector_id": "real-estate", "industry_group_id": "real-estate" },
-        { "id": "real-estate-management-development", "name_zh": "房地产管理与开发", "description": "房地产组下的管理开发行业。", "aliases": ["Real Estate Management & Development"], "sector_id": "real-estate", "industry_group_id": "real-estate" },
-        { "id": "electric-utilities", "name_zh": "电力公用事业", "description": "公用事业组下的电力行业。", "aliases": ["Electric Utilities"], "sector_id": "utilities", "industry_group_id": "utilities" },
-        { "id": "gas-utilities", "name_zh": "燃气公用事业", "description": "公用事业组下的燃气行业。", "aliases": ["Gas Utilities"], "sector_id": "utilities", "industry_group_id": "utilities" },
-        { "id": "independent-power-renewable-electricity-producers", "name_zh": "独立发电商与可再生能源发电商", "description": "公用事业组下的独立与可再生能源发电行业。", "aliases": ["Independent Power and Renewable Electricity Producers"], "sector_id": "utilities", "industry_group_id": "utilities" },
-        { "id": "multi-utilities", "name_zh": "综合公用事业", "description": "公用事业组下的综合公用事业行业。", "aliases": ["Multi-Utilities"], "sector_id": "utilities", "industry_group_id": "utilities" },
-        { "id": "water-utilities", "name_zh": "水务公用事业", "description": "公用事业组下的水务行业。", "aliases": ["Water Utilities"], "sector_id": "utilities", "industry_group_id": "utilities" }
+      "name_zh": "FinanceDatabase 行业分类",
+      "sectors": [
+        {
+          "aliases": [
+            "Communication Services"
+          ],
+          "description": "媒体、娱乐与电信服务板块。",
+          "id": "communication-services",
+          "name_zh": "通信服务"
+        },
+        {
+          "aliases": [
+            "Consumer Discretionary"
+          ],
+          "description": "汽车、耐用消费品、消费者服务与零售板块。",
+          "id": "consumer-discretionary",
+          "name_zh": "可选消费"
+        },
+        {
+          "aliases": [
+            "Consumer Staples"
+          ],
+          "description": "食品、饮料、烟草、家庭与个人用品板块。",
+          "id": "consumer-staples",
+          "name_zh": "必需消费"
+        },
+        {
+          "aliases": [
+            "Energy"
+          ],
+          "description": "能源设备、服务与燃料板块。",
+          "id": "energy",
+          "name_zh": "能源"
+        },
+        {
+          "aliases": [
+            "Financials"
+          ],
+          "description": "银行、多元金融与保险板块。",
+          "id": "financials",
+          "name_zh": "金融"
+        },
+        {
+          "aliases": [
+            "Health Care"
+          ],
+          "description": "医疗设备、服务、制药与生命科学板块。",
+          "id": "health-care",
+          "name_zh": "医疗保健"
+        },
+        {
+          "aliases": [
+            "Industrials"
+          ],
+          "description": "资本品、商业服务与运输板块。",
+          "id": "industrials",
+          "name_zh": "工业"
+        },
+        {
+          "aliases": [
+            "Information Technology"
+          ],
+          "description": "软件、技术硬件与半导体板块。",
+          "id": "information-technology",
+          "name_zh": "信息技术"
+        },
+        {
+          "aliases": [
+            "Materials"
+          ],
+          "description": "化学品、建材、包装、金属与林产品板块。",
+          "id": "materials",
+          "name_zh": "材料"
+        },
+        {
+          "aliases": [
+            "Real Estate"
+          ],
+          "description": "房地产投资、管理与开发板块。",
+          "id": "real-estate",
+          "name_zh": "房地产"
+        },
+        {
+          "aliases": [
+            "Utilities"
+          ],
+          "description": "电力、燃气、水务等公用事业板块。",
+          "id": "utilities",
+          "name_zh": "公用事业"
+        }
       ]
     },
     {
-      "id": "yahoo",
-      "name_zh": "Yahoo Finance 行业标签",
+      "aliases": [
+        "Yahoo"
+      ],
       "description": "仅记录供应商原分类，不宣称等同于 GICS/ICB。引用时需记录实际来源与获取日期。",
-      "aliases": ["Yahoo"],
-      "sectors": [
-        { "id": "technology", "name_zh": "信息技术", "description": "对应供应商 Technology 标签。", "aliases": ["Technology"] }
+      "id": "yahoo",
+      "industries": [
+        {
+          "aliases": [
+            "Semiconductors"
+          ],
+          "description": "对应供应商 Semiconductors 标签。",
+          "id": "semiconductors",
+          "industry_group_id": null,
+          "name_zh": "半导体",
+          "sector_id": "technology"
+        },
+        {
+          "aliases": [
+            "Software - Infrastructure"
+          ],
+          "description": "对应供应商 Software - Infrastructure 标签。",
+          "id": "software-infrastructure",
+          "industry_group_id": null,
+          "name_zh": "基础设施软件",
+          "sector_id": "technology"
+        }
       ],
       "industry_groups": [],
-      "industries": [
-        { "id": "semiconductors", "name_zh": "半导体", "description": "对应供应商 Semiconductors 标签。", "aliases": ["Semiconductors"], "sector_id": "technology", "industry_group_id": null },
-        { "id": "software-infrastructure", "name_zh": "基础设施软件", "description": "对应供应商 Software - Infrastructure 标签。", "aliases": ["Software - Infrastructure"], "sector_id": "technology", "industry_group_id": null }
+      "name_zh": "Yahoo Finance 行业标签",
+      "sectors": [
+        {
+          "aliases": [
+            "Technology"
+          ],
+          "description": "对应供应商 Technology 标签。",
+          "id": "technology",
+          "name_zh": "信息技术"
+        }
       ]
     }
   ],
+  "schema_version": "3.0.0",
   "tags": [
-    { "id": "ai", "name_zh": "人工智能", "description": "用于跨行业检索人工智能相关证券。", "aliases": ["AI"] },
-    { "id": "leveraged", "name_zh": "杠杆产品", "description": "用于辅助筛选，具体倍数、方向与重置周期以 ETF 字段为准。", "aliases": [] },
-    { "id": "digital-assets", "name_zh": "数字资产相关", "description": "数字资产相关的跨行业标签。", "aliases": [] },
-    { "id": "semiconductor-ai", "name_zh": "半导体/AI", "description": "AI 加速计算相关半导体。", "aliases": ["AI芯片"] },
-    { "id": "ai-cloud", "name_zh": "AI云/算力", "description": "提供 AI 计算基础设施或云算力服务。", "aliases": ["AI云算力", "AI算力"] },
-    { "id": "bitcoin-treasury", "name_zh": "比特币资产", "description": "交易叙事侧重企业持有的比特币资产，不替代其标准行业。", "aliases": ["比特币财库"] },
-    { "id": "semiconductor-foundry", "name_zh": "半导体/代工", "description": "晶圆代工主线。", "aliases": ["晶圆代工"] },
-    { "id": "satellite-communication", "name_zh": "卫星通信", "description": "卫星网络与通信服务主线。", "aliases": [] },
-    { "id": "us-large-cap", "name_zh": "美国大盘股", "description": "美国大盘股票指数敞口，不等同于某个公司行业。", "aliases": ["美股大盘"] },
-    { "id": "nasdaq-100", "name_zh": "纳指100", "description": "纳斯达克100指数敞口，不直接归类为科技公司。", "aliases": ["纳斯达克100"] },
-    { "id": "semiconductor-sector", "name_zh": "半导体板块", "description": "半导体板块整体敞口。杠杆另记 ETF 属性。", "aliases": [] },
-    { "id": "china-internet", "name_zh": "中概互联网", "description": "中国互联网相关证券敞口，与上市市场分开表达。", "aliases": [] },
-    { "id": "gold", "name_zh": "黄金", "description": "黄金资产敞口。", "aliases": [] },
-    { "id": "us-long-treasury", "name_zh": "长期美国国债", "description": "长期限美国国债敞口。", "aliases": ["美债长久期"] },
-    { "id": "bitcoin", "name_zh": "比特币", "description": "比特币资产直接或基金敞口；区别于企业财库标签。", "aliases": ["BTC"] }
+    {
+      "aliases": [
+        "AI"
+      ],
+      "description": "用于跨行业检索人工智能相关证券。",
+      "id": "ai",
+      "name_zh": "人工智能"
+    },
+    {
+      "aliases": [],
+      "description": "用于辅助筛选，具体倍数、方向与重置周期以 ETF 字段为准。",
+      "id": "leveraged",
+      "name_zh": "杠杆产品"
+    },
+    {
+      "aliases": [],
+      "description": "数字资产相关的跨行业标签。",
+      "id": "digital-assets",
+      "name_zh": "数字资产相关"
+    },
+    {
+      "aliases": [
+        "AI芯片"
+      ],
+      "description": "AI 加速计算相关半导体。",
+      "id": "semiconductor-ai",
+      "name_zh": "半导体/AI"
+    },
+    {
+      "aliases": [
+        "AI云算力",
+        "AI算力"
+      ],
+      "description": "提供 AI 计算基础设施或云算力服务。",
+      "id": "ai-cloud",
+      "name_zh": "AI云/算力"
+    },
+    {
+      "aliases": [
+        "比特币财库"
+      ],
+      "description": "交易叙事侧重企业持有的比特币资产，不替代其标准行业。",
+      "id": "bitcoin-treasury",
+      "name_zh": "比特币资产"
+    },
+    {
+      "aliases": [
+        "晶圆代工"
+      ],
+      "description": "晶圆代工主线。",
+      "id": "semiconductor-foundry",
+      "name_zh": "半导体/代工"
+    },
+    {
+      "aliases": [],
+      "description": "卫星网络与通信服务主线。",
+      "id": "satellite-communication",
+      "name_zh": "卫星通信"
+    },
+    {
+      "aliases": [
+        "美股大盘"
+      ],
+      "description": "美国大盘股票指数敞口，不等同于某个公司行业。",
+      "id": "us-large-cap",
+      "name_zh": "美国大盘股"
+    },
+    {
+      "aliases": [
+        "纳斯达克100"
+      ],
+      "description": "纳斯达克100指数敞口，不直接归类为科技公司。",
+      "id": "nasdaq-100",
+      "name_zh": "纳指100"
+    },
+    {
+      "aliases": [],
+      "description": "半导体板块整体敞口。杠杆另记 ETF 属性。",
+      "id": "semiconductor-sector",
+      "name_zh": "半导体板块"
+    },
+    {
+      "aliases": [],
+      "description": "中国互联网相关证券敞口，与上市市场分开表达。",
+      "id": "china-internet",
+      "name_zh": "中概互联网"
+    },
+    {
+      "aliases": [],
+      "description": "黄金资产敞口。",
+      "id": "gold",
+      "name_zh": "黄金"
+    },
+    {
+      "aliases": [
+        "美债长久期"
+      ],
+      "description": "长期限美国国债敞口。",
+      "id": "us-long-treasury",
+      "name_zh": "长期美国国债"
+    },
+    {
+      "aliases": [
+        "BTC"
+      ],
+      "description": "比特币资产直接或基金敞口；区别于企业财库标签。",
+      "id": "bitcoin",
+      "name_zh": "比特币"
+    },
+    {
+      "aliases": [
+        "Neocloud"
+      ],
+      "description": "新型云计算",
+      "id": "tag-ace22d5a-2e58-4a36-8162-1e211cbf8faf",
+      "name_zh": "新型云"
+    }
   ]
 }
