@@ -16,6 +16,9 @@ button[aria-pressed="true"] { background: #d9eee9; border-color: #086b60; font-w
 a { color: #075db0; overflow-wrap: anywhere; }
 .toolbar, .actions, .links, .badges { display: flex; align-items: center; flex-wrap: wrap; gap: .55rem; }
 .toolbar { margin: 1rem 0; }
+.record-actions { gap: .4rem; }
+.record-actions > a, .record-actions > button { display: inline-flex; align-items: center; justify-content: center; min-height: 2.25rem; max-width: 100%; padding: .3rem .65rem; border: 1px solid #c4d4dc; border-radius: .35rem; background: #f3f6f8; color: #183b4b; font-size: .88rem; line-height: 1.4; text-decoration: none; }
+.record-actions > a:hover, .record-actions > button:hover { background: #e8f5f3; border-color: #436572; }
 .panel { background: #fff; border: 1px solid #d7e1e6; border-radius: .7rem; padding: 1rem; min-width: 0; }
 .notice { background: #eaf4f1; border-left: 4px solid #177463; padding: .85rem 1rem; margin-bottom: 1rem; }
 .warning { background: #fff4db; border-left: 4px solid #a76a00; padding: .8rem 1rem; }

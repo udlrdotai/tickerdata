@@ -140,11 +140,11 @@ const sourceHint = '填写下方来源证据的 ID，用英文逗号或换行分
 
 function links(parent, path, exists = true) {
   const items = githubLinks(state.config, path, exists);
-  if (!items.length) {
-    parent.append(node('p', '未配置有效 GitHub 仓库地址：请手动将导出文件放入仓库。', 'muted'));
-    return;
-  }
   const group = node('div', null, 'links');
+  if (!items.length) {
+    parent.append(node('p', '未配置有效 GitHub 仓库地址：请手动将导出文件放入仓库。', 'muted'), group);
+    return group;
+  }
   for (const [label, url] of items) {
     const link = node('a', label);
     link.href = url;
@@ -154,6 +154,7 @@ function links(parent, path, exists = true) {
   }
   parent.append(group);
   if (!exists) parent.append(node('p', '此 ID 尚不在已加载源数据中；新建链接只预填文件路径，需自行粘贴 JSON。', 'hint'));
+  return group;
 }
 
 function diff(parent, before, after) {
@@ -379,7 +380,10 @@ function renderRecord(record) {
   const status = node('p', state.dirty ? '表单有未保存修改 · 尚未校验，未进入内存草稿' : '当前显示已加载内容 / 已保存内存草稿；编辑后请校验保存。', 'warning');
   status.id = 'form-state';
   detail.append(status);
-  links(detail, `data/instruments/${record.id}.json`, Boolean(before));
+  const recordActions = links(detail, `data/instruments/${record.id}.json`, Boolean(before));
+  recordActions.classList.add('record-actions');
+  recordActions.setAttribute('role', 'group');
+  recordActions.setAttribute('aria-label', '证券操作');
   const form = node('form');
   form.addEventListener('submit', (event) => event.preventDefault());
   detail.append(form);
@@ -410,7 +414,7 @@ function renderRecord(record) {
   const identity = section(form, '1 · 身份与上市信息');
   const original = bind(identity, '原始代码', 'symbol.original', '保留原始写法和标点，不作为内部 ID。');
   const canonical = bind(identity, '规范代码', 'symbol.canonical', '仅去除首尾空格并转为大写；不会猜测交易所或替换标点。');
-  identity.append(button('由原始代码填入规范代码', () => { canonical.value = normalizeSymbol(original.value); markDirty(); }));
+  recordActions.append(button('由原始代码填入规范代码', () => { canonical.value = normalizeSymbol(original.value); markDirty(); }));
   bind(identity, 'MIC 交易场所代码', 'symbol.mic', '未知留空；已知填写 4 位大写字母 / 数字，例如 XNAS。');
   const type = bind(identity, '证券类型', 'security_type', null, 'select', enumItems(Object.keys(typeNames), typeNames));
   bind(identity, '上市状态', 'listing_status', null, 'select', enumItems(['active', 'inactive', 'unknown'], { active: '正常上市', inactive: '已停止上市', unknown: '未知' }));
