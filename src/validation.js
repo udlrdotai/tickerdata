@@ -33,21 +33,39 @@ export function symbolEntries(record) {
   ].map((item) => ({ ...item, symbol: normalizeSymbol(item.symbol), instrument_id: record.id }));
 }
 
-export function validateDatasetShape(dataset) {
+function versionedDatasetShape(dataset, version) {
   if (!dataset || typeof dataset !== 'object' || Array.isArray(dataset) ||
-      dataset.schema_version !== SCHEMA_VERSION || !Array.isArray(dataset.instruments) ||
+      dataset.schema_version !== version || !Array.isArray(dataset.instruments) ||
       Object.keys(dataset).some((key) => !['schema_version', 'instruments', 'vocabulary'].includes(key))) {
-    return ['dataset: expected schema_version, instruments array and vocabulary'];
+    return [`dataset: expected supported schema_version ${version}, instruments array and vocabulary`];
   }
-  const errors = schemaErrors(validators.vocabulary, dataset.vocabulary, 'vocabulary');
+  const schema = version === '1.0.0' ? { vocabulary: validators.vocabularyV1, instrument: validators.instrumentV1 } : validators;
+  const errors = schemaErrors(schema.vocabulary, dataset.vocabulary, 'vocabulary');
   dataset.instruments.forEach((record, index) => {
-    errors.push(...schemaErrors(validators.instrument, record, `instruments[${index}]`));
+    errors.push(...schemaErrors(schema.instrument, record, `instruments[${index}]`));
   });
   return errors;
 }
 
+export function validateDatasetShape(dataset) {
+  return versionedDatasetShape(dataset, SCHEMA_VERSION);
+}
+
 export function validateDataset(dataset) {
-  const errors = validateDatasetShape(dataset);
+  return validateVersionedDataset(dataset, SCHEMA_VERSION);
+}
+
+export function validateLegacyDataset(dataset) {
+  return validateVersionedDataset(dataset, '1.0.0');
+}
+
+export function validateLegacyShape(payload, kind) {
+  if (!['instrument', 'vocabulary'].includes(kind)) return ['Unsupported legacy payload kind'];
+  return schemaErrors(validators[`${kind}V1`], payload, kind);
+}
+
+function validateVersionedDataset(dataset, version) {
+  const errors = versionedDatasetShape(dataset, version);
   // Shape validation must complete before traversing untrusted imports.
   if (errors.length) return errors;
 
@@ -58,13 +76,24 @@ export function validateDataset(dataset) {
   const systems = new Map();
   for (const system of vocabulary.industry_systems) {
     const sectors = uniqueLabels(system.sectors, `${system.id}/sectors`, errors);
+    const groups = version === '1.0.0' ? [] : system.industry_groups;
+    const industryGroups = uniqueLabels(groups, `${system.id}/industry_groups`, errors);
     const industries = uniqueLabels(system.industries, `${system.id}/industries`, errors);
+    for (const group of groups) {
+      if (!sectors.has(group.sector_id)) errors.push(`${system.id}/${group.id}: unknown sector ${group.sector_id}`);
+    }
     for (const industry of system.industries) {
       if (industry.sector_id !== null && !sectors.has(industry.sector_id)) {
         errors.push(`${system.id}/${industry.id}: unknown sector ${industry.sector_id}`);
       }
+      if (version !== '1.0.0') {
+        const group = groups.find((item) => item.id === industry.industry_group_id);
+        if (industry.industry_group_id !== null && !industryGroups.has(industry.industry_group_id)) errors.push(`${system.id}/${industry.id}: unknown industry group ${industry.industry_group_id}`);
+        if (group && industry.sector_id !== null && group.sector_id !== industry.sector_id) errors.push(`${system.id}/${industry.id}: industry group does not belong to selected sector`);
+        if (system.id === 'financedatabase' && (industry.sector_id === null || industry.industry_group_id === null)) errors.push(`${system.id}/${industry.id}: FinanceDatabase industry requires sector and industry group parents`);
+      }
     }
-    systems.set(system.id, { system, sectors, industries });
+    systems.set(system.id, { system, sectors, industries, industryGroups, groups });
   }
 
   const ids = new Set();
@@ -94,10 +123,18 @@ export function validateDataset(dataset) {
     const system = systems.get(industry.system_id);
     if (industry.system_id !== null && !system) fail(`unknown industry system ${industry.system_id}`);
     if (industry.sector_id !== null && !system?.sectors.has(industry.sector_id)) fail(`unknown sector ${industry.sector_id}`);
+    if (version !== '1.0.0' && industry.industry_group_id !== null && !system?.industryGroups.has(industry.industry_group_id)) fail(`unknown industry group ${industry.industry_group_id}`);
     if (industry.industry_id !== null && !system?.industries.has(industry.industry_id)) fail(`unknown industry ${industry.industry_id}`);
     const industryLabel = system?.system.industries.find((item) => item.id === industry.industry_id);
     if (industryLabel?.sector_id && industry.sector_id && industryLabel.sector_id !== industry.sector_id) fail('industry does not belong to selected sector');
-    if ([industry.system_id, industry.sector_id, industry.industry_id].some((value) => value !== null) && !industry.source_ids.length) fail('standard industry needs its own source');
+    const group = system?.groups.find((item) => item.id === industry.industry_group_id);
+    const parentGroup = system?.groups.find((item) => item.id === industryLabel?.industry_group_id);
+    if (group && industry.sector_id !== null && group.sector_id !== industry.sector_id) fail('industry group does not belong to selected sector');
+    if (group && industryLabel?.sector_id && group.sector_id !== industryLabel.sector_id) fail('selected industry group and industry belong to different sectors');
+    if (industryLabel?.industry_group_id && industry.industry_group_id && industryLabel.industry_group_id !== industry.industry_group_id) fail('industry does not belong to selected industry group');
+    if (parentGroup && industry.sector_id !== null && parentGroup.sector_id !== industry.sector_id) fail('industry parent group does not belong to selected sector');
+    const hierarchy = [industry.system_id, industry.sector_id, industry.industry_id, ...(version === '1.0.0' ? [] : [industry.industry_group_id])];
+    if (hierarchy.some((value) => value !== null) && !industry.source_ids.length) fail('standard industry needs its own source');
 
     if (record.classification.primary_theme_id !== null && !themes.has(record.classification.primary_theme_id)) fail('unknown primary theme');
     for (const id of record.classification.tag_ids) {
@@ -107,7 +144,7 @@ export function validateDataset(dataset) {
 
     if (record.security_type === 'etf') {
       if (record.etf === null) fail('ETF must have an ETF object (unknown attributes may be null)');
-      if (industry.system_id !== null || industry.sector_id !== null || industry.industry_id !== null || industry.source_ids.length) fail('ETF cannot use company sector/industry');
+      if (hierarchy.some((value) => value !== null) || industry.source_ids.length) fail('ETF cannot use company sector/industry');
       if (record.etf) {
         const etf = record.etf;
         if (Object.entries(etf).some(([key, value]) => key !== 'source_ids' && value !== null && (!Array.isArray(value) || value.length)) && !etf.source_ids.length) fail('ETF attributes need an ETF source');
@@ -175,12 +212,13 @@ export function validateReviewTransitions(previous, next) {
 }
 
 export function validateSuggestionShape(suggestion) {
-  return schemaErrors(validators.suggestion, suggestion, 'suggestion');
+  return schemaErrors(suggestion?.schema_version === '1.0.0' ? validators.suggestionV1 : validators.suggestion, suggestion, 'suggestion');
 }
 
 export function validateSuggestion(suggestion, dataset, recordHash) {
   const errors = validateSuggestionShape(suggestion);
   if (errors.length) return errors;
+  if (suggestion.schema_version !== dataset.schema_version) errors.push('suggestion: protocol version differs from dataset; preserve historical hashes and regenerate or reassess manually');
   const record = dataset.instruments.find((item) => item.id === suggestion.instrument_id);
   if (!record) errors.push('suggestion: unknown instrument');
   else if (recordHash && suggestion.base_record_sha256 !== recordHash(record)) errors.push('suggestion: stale base record; regenerate or reassess manually');

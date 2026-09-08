@@ -11,11 +11,17 @@ export async function compileSchemas() {
   addFormats(ajv, { mode: 'full', formats: ['date', 'date-time', 'uri'] });
   for (const name of ['common', 'instrument', 'vocabulary', 'suggestion']) {
     ajv.addSchema(JSON.parse(await readFile(`${root}schemas/${name}.schema.json`, 'utf8')));
+    const legacy = JSON.parse(await readFile(`${root}schemas/v1/${name}.schema.json`, 'utf8'));
+    legacy.$id = `https://tickerdata.local/schemas/v1/${name}`;
+    ajv.addSchema(legacy);
   }
   const code = standaloneCode(ajv, {
     instrument: 'https://tickerdata.local/schemas/instrument',
     vocabulary: 'https://tickerdata.local/schemas/vocabulary',
     suggestion: 'https://tickerdata.local/schemas/suggestion',
+    instrumentV1: 'https://tickerdata.local/schemas/v1/instrument',
+    vocabularyV1: 'https://tickerdata.local/schemas/v1/vocabulary',
+    suggestionV1: 'https://tickerdata.local/schemas/v1/suggestion',
   });
   await mkdir(`${root}web/generated`, { recursive: true });
   await writeFile(`${root}web/generated/validators.cjs`, code);

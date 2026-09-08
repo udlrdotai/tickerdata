@@ -48,6 +48,9 @@ legend { font-weight: 700; padding: 0 .5rem; }
 pre { background: #f1f5f7; border-radius: .4rem; padding: .75rem; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 24rem; overflow: auto; }
 details { margin: .8rem 0; }
 summary { cursor: pointer; font-weight: 600; }
+.industry-tree { overflow-wrap: anywhere; }
+.industry-tree details { margin-left: .75rem; }
+.industry-tree ul { padding-left: 1.3rem; }
 .checkbox { display: flex; align-items: flex-start; gap: .55rem; margin: .8rem 0; }
 .checkbox input { margin-top: .4rem; }
 .status-line { font-size: .9rem; margin: .7rem 0; }

@@ -1,4 +1,4 @@
-# 数据模型 1.0.0
+# 数据模型 2.0.0
 
 ## 证券，不是公司
 
@@ -16,7 +16,11 @@
 
 ## 标准行业、主主题、辅助标签
 
-`industry` 引用词表的 `system_id`、`sector_id`、`industry_id`，均可空。sector / industry 必须属于选定体系，已知的上下级关系也必须一致。初始只放少量 Yahoo 对照词，不宣称 Yahoo 等于 GICS，也不自动从 FinanceDatabase 复制。
+`industry` 引用词表的 `system_id`、`sector_id`、`industry_group_id`、`industry_id`，均可空，依次表达体系、板块、行业组、行业。所有已填写节点必须属于选定体系，已知的上下级关系也必须一致；不能通过省略板块来绕过行业与行业组的关系检查。
+
+`industry_systems[]` 含 `sectors`、`industry_groups`、`industries`。行业组通过 `sector_id` 关联板块；行业通过 `industry_group_id` 关联行业组，同时保留 `sector_id`，两条父级路径不能矛盾。已知部分层级时可只填写已知的证券字段，不要求虚构未知内容。
+
+`financedatabase` 使用固定上游版本的 11 板块 → 24 行业组 → 69 行业，词表内组和行业的父级关系完整。它是上游对 GICS 的近似，不是官方 GICS。现有 `yahoo` 体系的 ID、显示名、别名及行业语义保留，`industry_groups` 为空、`industry_group_id` 为 null，不能静默解释成 FinanceDatabase 分类。完整明细、来源与个股疑点见 [行业分类](industry-classification.md)。
 
 `classification.primary_theme_id` 是一个 ID 或空，下游互斥分组只使用这个字段；`tag_ids` 是去重后的辅助标签 ID 数组，不用于替代主分组。
 
@@ -41,7 +45,7 @@
 
 ## ETF
 
-ETF 必须有 `etf` 对象，但未确认属性可空；公司行业的三个 ID 必须全空、来源数组为空。非 ETF 的 `etf` 必须为空。
+ETF 必须有 `etf` 对象，但未确认属性可空；公司行业的四个 ID（含体系和行业组）必须全空、来源数组为空。非 ETF 的 `etf` 必须为空。
 
 ETF 属性包括 `objective`（指数 / 目标）、`asset_class`（equity / fixed_income / commodity / digital_asset / multi_asset / other）、`exposure`（地区敞口描述数组）、`leverage_factor`（正倍数）、`direction`（long / short / neutral）、`reset_period`（daily / monthly / none / other）、`fund_category`、`description` 及 `source_ids`。
 
@@ -53,6 +57,8 @@ ETF 属性包括 `objective`（指数 / 目标）、`asset_class`（equity / fix
 
 `review.reviewed_at` 是最近一次人工审核时间，待复核时可保留上次时间作参考。旧已审核内容修改后，要么降为待复核，要么明确重新审核并更新时间。这个状态机由网页导入 / 编辑逻辑与 PR 基准比较共同约束。
 
-所有源记录、词表、建议、发布文件都有 `schema_version`。改变字段含义或查询规则时应明确升级版本并编写迁移，不静默重新解释旧快照。当前只支持 1.0.0，消费者遇到其他版本拒绝读取。
+所有源记录、词表、建议、发布文件都有 `schema_version`。新增行业组是严格协议变更，当前源数据和发布产物使用 2.0.0，消费者遇到其他版本拒绝读取，不能只改版本号冒充迁移完成。历史 1.0.0 快照保持原字节和哈希，使用对应旧版本消费者读取，或显式迁移旧维护源数据后生成新的发布版本；不要直接修改 release 附件。
+
+旧维护数据迁移增加空的行业组字段及词表组数组，不推断旧行业所属的新组，也不把 Yahoo 改成 FinanceDatabase。迁移前验证旧格式和关系，先预览再显式应用；原待审核记录继续待审核，已审核内容变更后按规则转为需复核。历史建议保留原 schema 版本和基准记录哈希，不能重写哈希使旧建议“重新有效”。迁移用法见 README。
 
 JSON Schema 负责形状、类型、格式和枚举；`src/validation.js` 负责跨字段、跨记录、分类引用及审核规则。使用其他 JSON Schema 工具时，也需要执行 `npm run validate`，不能省略语义校验。

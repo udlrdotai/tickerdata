@@ -18,7 +18,9 @@
     "presuggestion:validate": "node scripts/compile-schemas.js",
     "suggestion:validate": "node scripts/cli.js suggestion",
     "preimport": "node scripts/compile-schemas.js",
-    "import": "node scripts/import.js"
+    "import": "node scripts/import.js",
+    "premigrate": "node scripts/compile-schemas.js",
+    "migrate": "node scripts/migrate.js"
   },
   "dependencies": {
     "ajv": "8.17.1",

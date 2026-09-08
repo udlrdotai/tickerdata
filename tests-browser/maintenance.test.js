@@ -1,9 +1,8 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { readFile, writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
-import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { chromium } from 'playwright';
 import { stableStringify } from '../src/model.js';
@@ -21,7 +20,8 @@ const errors = [];
 before(async () => {
   const root = resolve('dist');
   initial = JSON.parse(await readFile(resolve(root, 'source-data.json'), 'utf8'));
-  downloads = await mkdtemp(resolve(tmpdir(), 'tickerdata-browser-'));
+  downloads = resolve(`.browser-test-artifacts-${process.pid}-${Date.now()}`);
+  await mkdir(downloads);
   server = createServer(async (request, response) => {
     const path = resolve(root, `.${new URL(request.url, 'http://localhost').pathname === '/' ? '/index.html' : new URL(request.url, 'http://localhost').pathname}`);
     if (!path.startsWith(root + sep)) { response.writeHead(403).end(); return; }
@@ -145,11 +145,151 @@ test('adding ETF uses separate attributes and keeps identity stable when type ch
   assert.equal(etf.security_type, 'etf');
   assert.equal(etf.etf.leverage_factor, 3);
   assert.equal(etf.industry.industry_id, null);
+  assert.equal(etf.industry.industry_group_id, null);
   await page.locator('section[aria-label="编辑详情"]').getByLabel('证券类型', { exact: true }).selectOption('stock');
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
   const stock = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
   assert.equal(stock.id, etf.id);
   assert.equal(stock.etf, null);
+});
+
+test('three-level selection preserves initial values, cascades, backfills and round-trips through export/import', async (t) => {
+  const page = await pageForTest(t);
+  const record = initial.instruments.find((item) => item.symbol.canonical === 'NVDA');
+  const system = initial.vocabulary.industry_systems.find((item) => item.id === 'financedatabase');
+  const software = system.industries.find((item) => item.aliases.includes('Software'));
+  const otherSector = system.sectors.find((item) => item.id !== record.industry.sector_id);
+  await page.getByRole('button', { name: /^NVDA ·/ }).click();
+  const systemControl = page.getByLabel('行业体系', { exact: true });
+  const sectorControl = page.getByLabel('板块 / Sector', { exact: true });
+  const groupControl = page.getByLabel('行业组 / Industry Group', { exact: true });
+  const industryControl = page.getByLabel('行业 / Industry', { exact: true });
+  assert.equal(await systemControl.inputValue(), record.industry.system_id);
+  assert.equal(await sectorControl.inputValue(), record.industry.sector_id);
+  assert.equal(await groupControl.inputValue(), record.industry.industry_group_id);
+  assert.equal(await industryControl.inputValue(), record.industry.industry_id);
+  await sectorControl.selectOption(record.industry.sector_id);
+  assert.equal(await industryControl.inputValue(), record.industry.industry_id);
+  await sectorControl.selectOption(otherSector.id);
+  assert.equal(await groupControl.inputValue(), '');
+  assert.equal(await industryControl.inputValue(), '');
+  const allowedGroups = system.industry_groups.filter((item) => item.sector_id === otherSector.id).map((item) => item.id);
+  assert.deepEqual(await groupControl.locator('option').evaluateAll((items) => items.map((item) => item.value).filter(Boolean)), allowedGroups);
+  await systemControl.selectOption('yahoo');
+  await systemControl.selectOption('financedatabase');
+  assert.equal(await sectorControl.inputValue(), '');
+  assert.equal(await groupControl.inputValue(), '');
+  await industryControl.selectOption(software.id);
+  assert.equal(await sectorControl.inputValue(), software.sector_id);
+  assert.equal(await groupControl.inputValue(), software.industry_group_id);
+  await groupControl.selectOption(software.industry_group_id);
+  assert.equal(await industryControl.inputValue(), software.id);
+  const otherGroup = system.industry_groups.find((item) => item.sector_id === software.sector_id && item.id !== software.industry_group_id);
+  await groupControl.selectOption(otherGroup.id);
+  assert.equal(await industryControl.inputValue(), '');
+  await groupControl.selectOption('');
+  await industryControl.selectOption(software.id);
+  await page.getByLabel('行业来源 ID', { exact: true }).fill('');
+  await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
+  assert.match(await page.locator('#messages').textContent(), /standard industry needs its own source/);
+  await page.getByLabel('行业来源 ID', { exact: true }).fill(record.industry.source_ids.join(', '));
+  await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
+  assert.match(await page.locator('#messages').textContent(), /已通过校验/);
+  const edited = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
+  assert.equal(edited.schema_version, '2.0.0');
+  assert.equal(edited.industry.industry_id, software.id);
+  assert.equal(edited.industry.industry_group_id, software.industry_group_id);
+  assert.deepEqual(edited.classification, record.classification);
+  assert.deepEqual(edited.sources, record.sources);
+  await page.reload();
+  await page.getByRole('button', { name: /^NVDA ·/ }).click();
+  assert.equal(await industryControl.inputValue(), record.industry.industry_id);
+  await page.locator('input[type=file]').setInputFiles({
+    name: `${edited.id}.json`, mimeType: 'application/json', buffer: Buffer.from(stableStringify(edited)),
+  });
+  await page.getByText('导入内容已通过全数据集校验。', { exact: false }).waitFor();
+  assert.equal(await groupControl.inputValue(), software.industry_group_id);
+  assert.equal(await industryControl.inputValue(), software.id);
+  const bundle = await downloadJson(page, page.getByRole('button', { name: '导出完整维护包（全部源记录及词表）', exact: true }));
+  assert.equal(bundle.schema_version, '2.0.0');
+  assert.deepEqual(bundle.vocabulary, initial.vocabulary);
+  assert.deepEqual(bundle.instruments.find((item) => item.id === edited.id), edited);
+  assert.deepEqual(validateDataset(bundle), []);
+});
+
+test('empty records remain unclassified, Yahoo needs no group and ETF clears all hierarchy fields', async (t) => {
+  const page = await pageForTest(t);
+  await page.getByRole('button', { name: '＋ 新增证券', exact: true }).click();
+  const systemControl = page.getByLabel('行业体系', { exact: true });
+  const groupControl = page.getByLabel('行业组 / Industry Group', { exact: true });
+  assert.equal(await systemControl.inputValue(), '');
+  assert.equal(await systemControl.locator('option').nth(1).getAttribute('value'), 'financedatabase');
+  await page.getByLabel('原始代码', { exact: true }).fill('HIERARCHY');
+  await page.getByRole('button', { name: '由原始代码填入规范代码', exact: true }).click();
+  await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
+  const blank = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
+  assert.deepEqual(blank.industry, { system_id: null, sector_id: null, industry_group_id: null, industry_id: null, source_ids: [] });
+  await systemControl.selectOption('yahoo');
+  assert.equal(await groupControl.isDisabled(), true);
+  assert.match(await groupControl.textContent(), /此体系无行业组/);
+  await page.getByLabel('行业 / Industry', { exact: true }).selectOption('semiconductors');
+  assert.equal(await page.getByLabel('板块 / Sector', { exact: true }).inputValue(), 'technology');
+  await page.getByLabel('行业来源 ID', { exact: true }).fill('human');
+  await page.getByLabel('来源证据（JSON 数组）', { exact: true }).fill(JSON.stringify([
+    { id: 'human', kind: 'manual', label: 'Synthetic hierarchy fixture', url: null, accessed_at: null, fields: ['/industry'] },
+  ]));
+  await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
+  const yahoo = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
+  assert.equal(yahoo.industry.system_id, 'yahoo');
+  assert.equal(yahoo.industry.industry_group_id, null);
+  assert.equal(yahoo.industry.industry_id, 'semiconductors');
+  await systemControl.selectOption('financedatabase');
+  const system = initial.vocabulary.industry_systems.find((item) => item.id === 'financedatabase');
+  await page.getByLabel('行业 / Industry', { exact: true }).selectOption(system.industries[0].id);
+  assert.notEqual(await groupControl.inputValue(), '');
+  await page.locator('section[aria-label="编辑详情"]').getByLabel('证券类型', { exact: true }).selectOption('etf');
+  await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
+  const etf = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
+  assert.deepEqual(etf.industry, blank.industry);
+  assert.deepEqual(etf.classification, yahoo.classification);
+  assert.equal(etf.id, yahoo.id);
+});
+
+test('industry vocabulary is browsable in three levels and group edits flag reviewed references', async (t) => {
+  const page = await pageForTest(t);
+  await page.getByRole('button', { name: /^NVDA ·/ }).click();
+  await page.getByLabel('英文名称', { exact: true }).fill('Synthetic hierarchy fixture');
+  await page.getByLabel('MIC 交易场所代码', { exact: true }).fill('XNAS');
+  await page.getByLabel('审核人', { exact: true }).fill('Synthetic hierarchy reviewer');
+  await page.getByRole('checkbox').check();
+  await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
+  assert.match(await page.locator('#messages').textContent(), /已通过校验/);
+  await page.getByRole('button', { name: '主题 / 标签 / 行业词表', exact: true }).click();
+  await page.getByRole('button', { name: '行业体系', exact: true }).click();
+  await page.locator('aside .record-button').filter({ hasText: 'financedatabase' }).click();
+  assert.match(await page.locator('.industry-tree > summary').textContent(), /11 板块 \/ 24 行业组 \/ 69 行业/);
+  await page.locator('.industry-tree > details > summary').first().click();
+  await page.locator('.industry-tree > details').first().locator('details > summary').first().click();
+  assert.ok(await page.locator('.industry-tree li:visible').count() > 0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+  const vocabulary = JSON.parse(JSON.stringify(initial.vocabulary));
+  vocabulary.industry_systems.find((item) => item.id === 'financedatabase').industry_groups[0].description += ' Synthetic reviewed change.';
+  await page.getByText('高级：编辑完整词表 JSON（含行业体系 / 板块 / 行业组 / 行业）', { exact: true }).click();
+  await page.getByLabel('完整 vocabulary.json', { exact: true }).fill(stableStringify(vocabulary));
+  await page.getByRole('button', { name: '校验并保存完整词表草稿', exact: true }).click();
+  const bundle = await downloadJson(page, page.getByRole('button', { name: '导出完整维护包（全部源记录及词表）', exact: true }));
+  assert.equal(bundle.instruments.find((item) => item.symbol.canonical === 'NVDA').review.status, 'needs_review');
+  assert.deepEqual(bundle.vocabulary, vocabulary);
+  assert.deepEqual(validateDataset(bundle), []);
+  await page.getByRole('button', { name: '＋ 新增词条', exact: true }).click();
+  await page.getByLabel('中文显示名称', { exact: true }).fill('Synthetic industry system');
+  await page.getByRole('button', { name: '校验并保存词条草稿', exact: true }).click();
+  const saved = await downloadJson(page, page.getByRole('button', { name: '导出已保存词表 JSON', exact: true }));
+  const added = saved.industry_systems.find((item) => item.name_zh === 'Synthetic industry system');
+  assert.deepEqual(added.industry_groups, []);
+  assert.deepEqual(added.sectors, []);
+  assert.deepEqual(added.industries, []);
 });
 
 test('theme references block deletion and merged full bundle round-trips through browser import', async (t) => {

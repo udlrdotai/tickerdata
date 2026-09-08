@@ -7,10 +7,11 @@
   "etf": null,
   "id": "ins-000005",
   "industry": {
-    "industry_id": null,
-    "sector_id": null,
-    "source_ids": [],
-    "system_id": null
+    "industry_group_id": "telecommunication-services",
+    "industry_id": "diversified-telecommunication-services",
+    "sector_id": "communication-services",
+    "source_ids": ["financedatabase-equities"],
+    "system_id": "financedatabase"
   },
   "issuer": {
     "country": null,
@@ -21,16 +22,25 @@
     "en": null,
     "zh": null
   },
-  "notes": "初始化占位样例；仅采用用户提供的示例语义，未经独立核实。名称、MIC、上市状态及未核实属性留空或 unknown。请逐项核实后再填写审核人和时间；不可直接作为已审核事实。内部 ID 是本项目分配的标识，不是官方证券代码。",
+  "notes": "初始化占位样例；仅采用用户提供的示例语义，未经独立核实。名称、MIC、上市状态及未核实属性留空或 unknown。请逐项核实后再填写审核人和时间；不可直接作为已审核事实。内部 ID 是本项目分配的标识，不是官方证券代码。\n行业疑点：FinanceDatabase 固定版本将 GOOG 归为综合电信服务（Diversified Telecommunication Services）。此处忠实记录原值，待人工复核，不表示本项目确认该分类正确。",
   "related_instrument_ids": [],
   "review": {
     "reviewed_at": null,
     "reviewer": null,
     "status": "pending"
   },
-  "schema_version": "1.0.0",
+  "schema_version": "2.0.0",
   "security_type": "stock",
-  "sources": [],
+  "sources": [
+    {
+      "accessed_at": "2026-09-08T01:03:47Z",
+      "fields": ["/industry"],
+      "id": "financedatabase-equities",
+      "kind": "provider",
+      "label": "FinanceDatabase GOOG (NMS/XNAS) 原值：Communication Services → Telecommunication Services → Diversified Telecommunication Services。电信分类存在疑点，保留上游原值待人工复核。",
+      "url": "https://github.com/JerBouma/FinanceDatabase/blob/ac05d03dbed851a6fd3905a2e92ee036d0397760/database/equities/NMS.csv"
+    }
+  ],
   "symbol": {
     "aliases": [],
     "canonical": "GOOG",

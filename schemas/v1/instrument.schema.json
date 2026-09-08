@@ -5,7 +5,7 @@
   "additionalProperties": false,
   "required": ["schema_version", "id", "symbol", "name", "security_type", "issuer", "listing_status", "industry", "classification", "etf", "related_instrument_ids", "notes", "sources", "review"],
   "properties": {
-    "schema_version": { "const": "2.0.0" },
+    "schema_version": { "const": "1.0.0" },
     "id": { "type": "string", "pattern": "^ins-[a-z0-9]+(?:-[a-z0-9]+)*$", "maxLength": 100 },
     "symbol": {
       "type": "object",
@@ -68,11 +68,10 @@
     "industry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["system_id", "sector_id", "industry_group_id", "industry_id", "source_ids"],
+      "required": ["system_id", "sector_id", "industry_id", "source_ids"],
       "properties": {
         "system_id": { "$ref": "common#/definitions/nullableId" },
         "sector_id": { "$ref": "common#/definitions/nullableId" },
-        "industry_group_id": { "$ref": "common#/definitions/nullableId" },
         "industry_id": { "$ref": "common#/definitions/nullableId" },
         "source_ids": { "$ref": "common#/definitions/ids" }
       }

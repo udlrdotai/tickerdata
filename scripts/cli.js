@@ -3,8 +3,8 @@ import { resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { build } from 'esbuild';
-import { stableStringify, SCHEMA_VERSION } from '../src/model.js';
-import { validateDataset, validateReviewTransitions, validateSuggestion, validateSuggestionShape } from '../src/validation.js';
+import { stableStringify } from '../src/model.js';
+import { validateDataset, validateLegacyDataset, validateReviewTransitions, validateSuggestion, validateSuggestionShape } from '../src/validation.js';
 import { createRelease, recordHash } from '../src/release.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -19,7 +19,8 @@ export async function loadDataset(directory = root) {
     if (name !== `${record.id}.json`) throw new Error(`Source filename must match immutable record ID: ${name}`);
     instruments.push(record);
   }
-  return { schema_version: SCHEMA_VERSION, instruments, vocabulary: await json(resolve(directory, 'data/vocabulary.json')) };
+  const vocabulary = await json(resolve(directory, 'data/vocabulary.json'));
+  return { schema_version: vocabulary.schema_version, instruments, vocabulary };
 }
 
 function git(args) {
@@ -29,7 +30,11 @@ function git(args) {
 function loadBaseline(ref) {
   if (!/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(ref)) throw new Error('Baseline must be a full commit SHA');
   const files = git(['ls-tree', '-r', '--name-only', ref, '--', 'data/instruments']).split('\n').filter((file) => file.endsWith('.json'));
-  return { instruments: files.map((file) => JSON.parse(git(['show', `${ref}:${file}`]))) };
+  if (!files.length) return { instruments: [] };
+  const vocabulary = JSON.parse(git(['show', `${ref}:data/vocabulary.json`]));
+  const dataset = { schema_version: vocabulary.schema_version, instruments: files.map((file) => JSON.parse(git(['show', `${ref}:${file}`]))), vocabulary };
+  assertValid(dataset.schema_version === '1.0.0' ? validateLegacyDataset(dataset) : validateDataset(dataset));
+  return dataset;
 }
 
 function assertValid(errors) {

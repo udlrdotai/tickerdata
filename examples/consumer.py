@@ -24,7 +24,7 @@ import urllib.request
 import warnings
 
 
-SCHEMA_VERSION = "1.0.0"
+SCHEMA_VERSION = "2.0.0"
 DATA_FILES = ("instruments.json", "themes.json", "symbol-index.json")
 VERSION_RE = re.compile(r"[a-f0-9]{64}")
 ID_RE = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
@@ -148,7 +148,9 @@ def _expected_version(value):
 def _manifest(raw, expected_data_version):
     value = _parse(raw, "manifest.json")
     _object(value, "schema_version data_version source_commit generated_at files", "manifest")
-    _require(value["schema_version"] == SCHEMA_VERSION, "Unsupported manifest schema_version")
+    _require(value["schema_version"] == SCHEMA_VERSION,
+             "Unsupported manifest schema_version: use a matching historical consumer or "
+             "explicitly migrate maintenance source data and publish a new release")
     _expected_version(value["data_version"])
     _require(value["data_version"] is not None, "Manifest data_version is required")
     _require(expected_data_version is None or value["data_version"] == expected_data_version,
@@ -190,14 +192,27 @@ def _labels(items, where, extra=""):
 def _vocabulary(value):
     themes = _labels(value["themes"], "themes")
     tags = _labels(value["tags"], "tags")
-    systems = _labels(value["industry_systems"], "industry_systems", "sectors industries")
+    systems = _labels(value["industry_systems"], "industry_systems", "sectors industry_groups industries")
     for system in systems.values():
         sectors = _labels(system["sectors"], "sectors")
-        industries = _labels(system["industries"], "industries", "sector_id")
+        groups = _labels(system["industry_groups"], "industry_groups", "sector_id")
+        for group in groups.values():
+            _identifier(group["sector_id"], "industry_group.sector_id")
+            _require(group["sector_id"] in sectors, "Industry group references unknown sector")
+        industries = _labels(system["industries"], "industries", "sector_id industry_group_id")
         for industry in industries.values():
             _identifier(industry["sector_id"], "industry.sector_id", nullable=True)
             _require(industry["sector_id"] is None or industry["sector_id"] in sectors,
                      "Industry references unknown sector")
+            _identifier(industry["industry_group_id"], "industry.industry_group_id", nullable=True)
+            _require(industry["industry_group_id"] is None or industry["industry_group_id"] in groups,
+                     "Industry references unknown industry group")
+            group = groups.get(industry["industry_group_id"])
+            _require(not group or industry["sector_id"] is None or
+                     group["sector_id"] == industry["sector_id"], "Industry group/sector mismatch")
+            _require(system["id"] != "financedatabase" or
+                     industry["sector_id"] is not None and industry["industry_group_id"] is not None,
+                     "FinanceDatabase industry requires sector and industry group parents")
     return themes, tags, systems
 
 
@@ -263,18 +278,32 @@ def _record(value, themes, tags, systems):
                             "/issuer", "/listing_status", "/notes"), "source.fields")
         sources[source["id"]] = source
 
-    industry = _object(value["industry"], "system_id sector_id industry_id source_ids", "industry")
-    for key in ("system_id", "sector_id", "industry_id"):
+    industry = _object(value["industry"], "system_id sector_id industry_group_id industry_id source_ids", "industry")
+    hierarchy = ("system_id", "sector_id", "industry_group_id", "industry_id")
+    for key in hierarchy:
         _identifier(industry[key], "industry." + key, nullable=True)
     system = systems.get(industry["system_id"])
     _require(industry["system_id"] is None or system is not None, "Unknown industry system")
     sectors = {item["id"]: item for item in system["sectors"]} if system else {}
+    groups = {item["id"]: item for item in system["industry_groups"]} if system else {}
     industries = {item["id"]: item for item in system["industries"]} if system else {}
     _require(industry["sector_id"] is None or industry["sector_id"] in sectors, "Unknown sector")
+    _require(industry["industry_group_id"] is None or industry["industry_group_id"] in groups,
+             "Unknown industry group")
     _require(industry["industry_id"] is None or industry["industry_id"] in industries, "Unknown industry")
     label = industries.get(industry["industry_id"])
     _require(not label or not label["sector_id"] or not industry["sector_id"] or
              label["sector_id"] == industry["sector_id"], "Industry/sector mismatch")
+    group = groups.get(industry["industry_group_id"])
+    parent_group = groups.get(label["industry_group_id"]) if label else None
+    _require(not group or not label or not label["sector_id"] or
+             group["sector_id"] == label["sector_id"], "Selected industry group and industry belong to different sectors")
+    _require(not group or industry["sector_id"] is None or
+             group["sector_id"] == industry["sector_id"], "Industry group/sector mismatch")
+    _require(not label or not label["industry_group_id"] or not industry["industry_group_id"] or
+             label["industry_group_id"] == industry["industry_group_id"], "Industry/group mismatch")
+    _require(not parent_group or industry["sector_id"] is None or
+             parent_group["sector_id"] == industry["sector_id"], "Industry parent group/sector mismatch")
 
     classification = _object(value["classification"], "primary_theme_id tag_ids source_ids",
                              "classification")
@@ -285,14 +314,14 @@ def _record(value, themes, tags, systems):
     _ids(classification["source_ids"], "classification.source_ids")
     _require(bool(classification["source_ids"]), "Reviewed classification needs source")
     _ids(industry["source_ids"], "industry.source_ids")
-    _require(not any(industry[key] is not None for key in ("system_id", "sector_id", "industry_id"))
+    _require(not any(industry[key] is not None for key in hierarchy)
              or bool(industry["source_ids"]), "Industry needs source")
 
     etf = value["etf"]
     if value["security_type"] == "etf":
         _object(etf, "objective asset_class exposure leverage_factor direction reset_period "
                 "fund_category description source_ids", "etf")
-        _require(all(industry[key] is None for key in ("system_id", "sector_id", "industry_id"))
+        _require(all(industry[key] is None for key in hierarchy)
                  and not industry["source_ids"], "ETF must not have company industry")
         for key in ("objective", "fund_category", "description"):
             _text(etf[key], "etf." + key, nullable=True)
