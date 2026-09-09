@@ -57,6 +57,8 @@ summary { cursor: pointer; font-weight: 600; }
 .checkbox { display: flex; align-items: flex-start; gap: .55rem; margin: .8rem 0; }
 .checkbox input { margin-top: .4rem; }
 .status-line { font-size: .9rem; margin: .7rem 0; }
+.pr-form { margin-top: .8rem; display: grid; gap: .6rem; }
+.pr-form textarea { min-height: 8rem; }
 .file-list { padding-left: 1.3rem; }
 .file-list li { margin: .7rem 0; }
 .file-list .download { display: inline-block; text-decoration: none; }
