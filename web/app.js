@@ -1,6 +1,7 @@
 import { validateDataset, validateReviewTransitions } from '../src/validation.js';
 import { SCHEMA_VERSION, emptyInstrument, emptyEtf, stableStringify, normalizeSymbol } from '../src/model.js';
 import { clone, matchesRecord, prepareRecord, references, applyVocabulary, mergeVocabulary, changedFiles, githubLinks, prepareImportedDataset, assertCurrentImportVersion, downgradeRelatedReviews, industryChoices, changeIndustrySelection } from './editor-model.js';
+import { createPullRequestFromDraft, defaultPrDraft } from './github-pr.js';
 
 const app = document.querySelector('#app');
 const state = {
@@ -8,6 +9,7 @@ const state = {
   vocabKind: 'tags', vocabId: null, dirty: false,
   filters: { query: '', type: '', tag: '', review: '' },
   exported: new Map(),
+  pr: { token: '', branch: '', commitMessage: '', title: '', body: '', confirm: false, submitting: false, url: '', fingerprint: '' },
 };
 const reviewNames = { pending: '待审核', needs_review: '需复核', reviewed: '已人工审核' };
 const typeNames = { stock: '股票', etf: 'ETF', other: '其他' };
@@ -33,7 +35,10 @@ function button(text, action, className = '') {
 }
 
 function attempt(action) {
-  try { action(); } catch (error) { report(error.message || String(error), true); }
+  try {
+    const result = action();
+    if (result && typeof result.then === 'function') result.catch((error) => report(error.message || String(error), true));
+  } catch (error) { report(error.message || String(error), true); }
 }
 
 function report(text, error = false) {
@@ -201,6 +206,11 @@ function exportFile(path, content) {
 
 function renderExports(parent) {
   const files = changedFiles(state.initial, state.dataset);
+  const fingerprint = files.map((file) => `${file.path}\n${stableStringify(file.content)}`).join('\n---\n');
+  if (state.pr.fingerprint !== fingerprint) {
+    const draft = defaultPrDraft(files);
+    state.pr = { ...state.pr, ...draft, confirm: false, submitting: false, url: '', fingerprint };
+  }
   const panel = node('details', null, 'panel');
   panel.open = files.length > 0;
   panel.append(node('summary', `内存草稿 / 完整变更清单：${files.length} 个文件`));
@@ -225,6 +235,77 @@ function renderExports(parent) {
     panel.append(node('p', `跨词表 / 证券的修改（尤其 ID 合并）必须整体提交。维护包格式为 {schema_version:"${SCHEMA_VERSION}", instruments:[全部源记录], vocabulary:{完整词表}}，含未修改及待审核记录，并非仅已发布数据。使用仓库导入命令，或将各记录写入 data/instruments/<id>.json、词表写入 data/vocabulary.json；校验后将上述全部变更一并提交。`, 'hint'));
     panel.append(node('pre', 'npm run import -- tickerdata-maintenance-bundle.json\nnpm run import -- tickerdata-maintenance-bundle.json --apply --expect HASH'));
     panel.append(node('p', '先在仓库目录运行第一条命令，检查完整修改前 / 后差异及源数据哈希；再将第二条命令中的 HASH 替换为此次预览输出的哈希。源数据已变化时请重新预览，不要绕过并发保护。', 'hint'));
+    const submit = node('details');
+    submit.append(node('summary', '直接提交 PR（无需先下载再上传）'));
+    submit.append(node('p', '此方式会直接调用 GitHub API：先校验远端基线是否仍与当前页面初始加载一致，再一次性创建新分支、提交全部变更并创建 PR。下载导出仍可作为备用方式。', 'hint'));
+    const form = node('div', null, 'pr-form');
+    const prField = (title, value, hint, multiline = false) => {
+      const control = node(multiline ? 'textarea' : 'input');
+      if (!multiline) control.type = 'text';
+      control.value = value ?? '';
+      field(form, title, control, hint);
+      return control;
+    };
+    const token = prField('GitHub Token（仅本页内存，提交后即清空）', state.pr.token, '需要 contents:write 与 pull_requests:write。不要把 Token 写入数据字段。');
+    token.type = 'password';
+    token.autocomplete = 'off';
+    token.addEventListener('input', () => { state.pr.token = token.value; });
+    const branch = prField('新分支名', state.pr.branch);
+    branch.addEventListener('input', () => { state.pr.branch = branch.value; });
+    const commitMessage = prField('提交信息（commit message）', state.pr.commitMessage);
+    commitMessage.addEventListener('input', () => { state.pr.commitMessage = commitMessage.value; });
+    const title = prField('PR 标题', state.pr.title);
+    title.addEventListener('input', () => { state.pr.title = title.value; });
+    const body = prField('PR 描述', state.pr.body, null, true);
+    body.rows = 8;
+    body.addEventListener('input', () => { state.pr.body = body.value; });
+    const confirm = node('label', null, 'checkbox');
+    const confirmInput = node('input');
+    confirmInput.type = 'checkbox';
+    confirmInput.checked = state.pr.confirm;
+    confirmInput.addEventListener('change', () => { state.pr.confirm = confirmInput.checked; });
+    confirm.append(confirmInput, node('span', `我已确认将一次性提交以上 ${files.length} 个文件，并基于 ${state.config.branch} 创建新分支与 PR。`));
+    form.append(confirm);
+    const actions = node('div', null, 'actions');
+    const submitButton = button(state.pr.submitting ? '提交中…' : '提交 PR', async () => {
+      assertExportable();
+      if (!state.pr.confirm) throw new Error('请先确认本次将提交全部变更文件。');
+      state.pr.submitting = true;
+      state.pr.url = '';
+      render();
+      try {
+        const result = await createPullRequestFromDraft({
+          config: state.config,
+          initial: state.initial,
+          files,
+          token: state.pr.token,
+          branch: state.pr.branch,
+          commitMessage: state.pr.commitMessage,
+          title: state.pr.title,
+          body: state.pr.body,
+        });
+        state.pr.url = result.url;
+        state.pr.token = '';
+        report(`PR 创建成功：${result.url}`);
+      } finally {
+        state.pr.submitting = false;
+        render();
+      }
+    }, 'primary');
+    submitButton.disabled = state.pr.submitting;
+    actions.append(submitButton);
+    form.append(actions);
+    if (state.pr.url) {
+      const line = node('p', '提交成功：');
+      const link = node('a', state.pr.url);
+      link.href = state.pr.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      line.append(link);
+      form.append(line);
+    }
+    submit.append(form);
+    panel.append(submit);
   }
   parent.append(panel);
 }
@@ -234,10 +315,10 @@ function render() {
   readRecord = null;
   const instructions = node('details', null, 'notice');
   instructions.append(node('summary', '操作流程与隐私边界 · 请先阅读'));
-  instructions.append(node('p', '加载源数据 → 人工编辑 / 审核 → 全数据集校验 → 保存内存草稿 → 导出全部变更文件 → 在 GitHub 提交 / PR → 仓库校验及发布流程。此页面没有后台、登录、自动提交或自动发布功能。'));
+  instructions.append(node('p', '加载源数据 → 人工编辑 / 审核 → 全数据集校验 → 保存内存草稿 → （可选）直接创建 PR，或导出全部变更文件再手动提交 → 仓库校验及发布流程。'));
   instructions.append(node('p', '仓库导入支持单条证券、完整词表及完整维护包：先运行 npm run import -- 文件.json 预览；确认差异后执行 npm run import -- 文件.json --apply --expect HASH（HASH 使用预览输出的源数据哈希）。合并词条请使用完整维护包，避免分步导入破坏引用。'));
   instructions.append(node('p', '隐私：source-data.json 包含待审核、需复核等完整维护记录。若本页面公开托管，这些记录同样可被公开下载。审核状态不是访问控制。请勿输入密钥、密码、个人敏感信息或非公开资料。'));
-  instructions.append(node('p', '本页只请求同目录的 source-data.json 和 site-config.json，不保存到 localStorage，不向远程服务发送数据。GitHub 链接由你主动打开。'));
+  instructions.append(node('p', '本页默认只请求同目录的 source-data.json 和 site-config.json。使用“提交 PR”时会直接请求 GitHub API；Token 仅存在当前页面内存，不写入 localStorage、源数据或仓库文件。'));
   app.append(instructions);
   app.append(node('p', `已加载源数据：${state.dataset.instruments.length} 条（不代表全部已审核）。实际发布状态：本页未核验；已审核不等于已发布。Pages 配置：${state.config?.pages_enabled ? '已启用' : '未启用或未配置'}。`, 'status-line'));
   const toolbar = node('nav', null, 'toolbar');

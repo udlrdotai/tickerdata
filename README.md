@@ -16,7 +16,7 @@
 
 **全部尚未审核时，正式 `instruments.json` 和索引为空；完成审核并发布后，只包含已审核记录。** 网页可以查看和维护所有源记录。样例、单元测试中的虚构证券，都不能作为投资事实。
 
-本项目使用公开仓库 [udlrdotai/tickerdata](https://github.com/udlrdotai/tickerdata)，已显式选择公开 Pages 部署，目标维护入口为 <https://udlrdotai.github.io/tickerdata/>。是否部署成功及对应 commit 以仓库 Actions 和 Pages 状态为准。AI 在线生成、yfinance 抓取、网页内创建 PR 均不属于此版实现。
+本项目使用公开仓库 [udlrdotai/tickerdata](https://github.com/udlrdotai/tickerdata)，已显式选择公开 Pages 部署，目标维护入口为 <https://udlrdotai.github.io/tickerdata/>。是否部署成功及对应 commit 以仓库 Actions 和 Pages 状态为准。AI 在线生成、yfinance 抓取不属于此版实现。
 
 ## 本地启动
 
@@ -71,8 +71,8 @@ dist/                          # 生成产物，忽略入库，禁止反向手�
 1. 在网页按 ticker、名称、别名搜索，按类型 / 标签 / 审核状态筛选；打开或新增证券。
 2. 分开填写证券身份、行业、多选标签、ETF 属性和依据。标签只能引用词表 ID，可留空。未知值保留空，不凭公司国籍排除美国上市证券。
 3. 查看差异并保存为**浏览器内存草稿**。草稿不写 GitHub、不跨刷新持久保存。页面离开会警告，仍应及时导出。
-4. 导出单证券 `<id>.json`、词表 `vocabulary.json`，或涉及多文件修改的完整维护包。导出只是下载文件，不是提交。
-5. 单文件可从页面跳转 GitHub 编辑页，人工粘贴完整导出内容，通过 GitHub 登录、创建分支 / PR、审阅差异。多文件标签合并必须把词表和所有引用更新放进**同一个 PR**，不要分别合入。
+4. 在“内存草稿 / 完整变更清单”中确认受影响文件。可直接在页面填写分支名、提交信息、PR 标题和描述，使用 GitHub Token 一次性创建新分支与 PR。
+5. 仍可导出单证券 `<id>.json`、词表 `vocabulary.json` 或完整维护包作为备用流程。导出只是下载文件，不是提交。多文件标签合并必须把词表和所有引用更新放进**同一个 PR**，不要分别合入。
 6. CI 校验通过后由人审阅合入。重新构建站点；正式消费文件仅包含 `review.status=reviewed` 的记录。
 
 **审核不是一个自动通过的按钮。** 审核人需要核对身份、MIC、已填写的行业 / 标签 / ETF 属性和来源，填写 `reviewer`、UTC `reviewed_at`。标签不是审核必填项。已审核记录修改后应变为 `needs_review`，或经过明确复核并填写比旧记录更新的审核时间。PR 校验也会检查这一点。
@@ -131,7 +131,19 @@ npm run validate
 
 ## GitHub / Pages 部署与可见性
 
-**GitHub Pages 不能安全保存服务器端密钥，也没有直接写仓库的后端。** 本系统没有 PAT、OAuth secret 或 AI key 输入，不使用浏览器持久存储保管凭据，不伪装 GitHub 提交成功。
+**GitHub Pages 不能安全保存服务器端密钥，也没有直接写仓库的后端。** 本系统不在仓库或前端代码中保存 PAT、OAuth secret 或 AI key。网页“直接提交 PR”使用你临时输入的 GitHub Token 调用 GitHub API，Token 仅保存在当前页面内存中，刷新后即丢失，不写入 localStorage。
+
+### 网页内直接创建 PR（可选）
+
+在“内存草稿 / 完整变更清单”中点击“直接提交 PR（无需先下载再上传）”：
+
+1. 确认变更文件列表。
+2. 填写或调整分支名、commit message、PR 标题、PR 描述。
+3. 输入 GitHub Token（建议 fine-grained PAT，仓库最小权限：Contents `Read and write`、Pull requests `Read and write`）。
+4. 勾选确认后提交。页面会先校验远端基线文件是否仍与当前加载时一致；若不一致会拒绝提交并提示刷新重试。
+5. 成功后显示可访问的 PR 链接。
+
+常见失败会给出明确提示：认证失败 / 权限不足、分支重名、远端文件已变化、API 限流、PR 创建失败。若分支已创建但 PR 创建失败，页面会尝试回滚该临时分支，避免产生半完成状态。
 
 将文件夹放入你明确选择可见性的 GitHub 仓库后，在 `config/site.json` 填写：
 

@@ -57,13 +57,16 @@ after(async () => {
   assert.deepEqual(await readFile('dist/source-data.json'), sourceSnapshot);
 });
 
-async function pageForTest(t, options = {}, source = null) {
+async function pageForTest(t, options = {}, source = null, allowExternalRequests = []) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, ...options });
   const page = await context.newPage();
   page.setDefaultTimeout(10000);
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('request', (request) => {
-    if (!request.url().startsWith(origin) && !request.url().startsWith('blob:')) errors.push(`Unexpected external request ${request.url()}`);
+    const url = request.url();
+    if (!url.startsWith(origin) && !url.startsWith('blob:') && !allowExternalRequests.some((prefix) => url.startsWith(prefix))) {
+      errors.push(`Unexpected external request ${url}`);
+    }
   });
   page.on('dialog', (dialog) => dialog.accept());
   t.after(() => context.close());
@@ -261,6 +264,23 @@ test('normalization remains available for new records and unconfigured GitHub li
   await actions.getByRole('button', { name: '由原始代码填入规范代码', exact: true }).click();
   assert.equal(await page.getByLabel('规范代码', { exact: true }).inputValue(), 'CRWV');
   assert.match(await page.locator('#form-state').textContent(), /未保存修改/);
+});
+
+test('direct PR submission form appears after edits and keeps export fallback', async (t) => {
+  const page = await pageForTest(t);
+  await page.getByRole('button', { name: /^NVDA ·/ }).click();
+  await page.getByLabel('英文名称', { exact: true }).fill('Direct PR flow fixture');
+  await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
+  await page.getByText('直接提交 PR（无需先下载再上传）', { exact: true }).click();
+  assert.equal(await page.getByLabel('新分支名', { exact: true }).inputValue() !== '', true);
+  assert.equal(await page.getByLabel('提交信息（commit message）', { exact: true }).inputValue() !== '', true);
+  assert.equal(await page.getByLabel('PR 标题', { exact: true }).inputValue() !== '', true);
+  assert.match(await page.getByLabel('PR 描述', { exact: true }).inputValue(), /变更文件/);
+  await page.getByLabel('GitHub Token（仅本页内存，提交后即清空）', { exact: true }).fill('fixture-token');
+  await page.getByRole('button', { name: '提交 PR', exact: true }).click();
+  assert.match(await page.locator('#messages').textContent(), /请先确认本次将提交全部变更文件/);
+  await page.getByRole('checkbox', { name: /我已确认将一次性提交以上/ }).check();
+  assert.equal(await page.getByRole('button', { name: '导出完整维护包（全部源记录及词表）', exact: true }).count(), 1);
 });
 
 test('records already reviewed at startup downgrade on edit unless explicitly re-reviewed', async (t) => {
