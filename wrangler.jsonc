@@ -2,10 +2,13 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "tickerdata",
   "compatibility_date": "2026-09-10",
+  "main": "worker/index.js",
   "workers_dev": true,
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "404-page"
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "run_worker_first": ["/api/*"]
   },
   "observability": {
     "enabled": true

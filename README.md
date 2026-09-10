@@ -71,7 +71,7 @@ dist/                          # 生成产物，忽略入库，禁止反向手�
 1. 在网页按 ticker、名称、别名搜索，按类型 / 标签 / 审核状态筛选；打开或新增证券。
 2. 分开填写证券身份、行业、多选标签、ETF 属性和依据。标签只能引用词表 ID，可留空。未知值保留空，不凭公司国籍排除美国上市证券。
 3. 查看差异并保存为**浏览器内存草稿**。草稿不写 GitHub、不跨刷新持久保存。页面离开会警告，仍应及时导出。
-4. 在“内存草稿 / 完整变更清单”中确认受影响文件。可直接在页面填写分支名、提交信息、PR 标题和描述，使用 GitHub Token 一次性创建新分支与 PR。
+4. 在“内存草稿 / 完整变更清单”中确认受影响文件。使用 GitHub App 登录后，可直接填写分支名、提交信息、PR 标题和描述，由 Worker 一次性创建新分支与 PR。
 5. 仍可导出单证券 `<id>.json`、词表 `vocabulary.json` 或完整维护包作为备用流程。导出只是下载文件，不是提交。多文件标签合并必须把词表和所有引用更新放进**同一个 PR**，不要分别合入。
 6. CI 校验通过后由人审阅合入。重新构建站点；正式消费文件仅包含 `review.status=reviewed` 的记录。
 
@@ -131,19 +131,39 @@ npm run validate
 
 ## GitHub / Pages 部署与可见性
 
-**GitHub Pages 不能安全保存服务器端密钥，也没有直接写仓库的后端。** 本系统不在仓库或前端代码中保存 PAT、OAuth secret 或 AI key。网页“直接提交 PR”使用你临时输入的 GitHub Token 调用 GitHub API，Token 仅保存在当前页面内存中，刷新后即丢失，不写入 localStorage。
+**纯 GitHub Pages 不能安全保存服务器端密钥，也没有直接写仓库的后端。** 本系统不在仓库或前端代码中保存 PAT、OAuth secret 或 AI key。网页“直接提交 PR”依赖同源 Cloudflare Worker 完成 GitHub App OAuth 和 GitHub API 调用；浏览器只持有 HttpOnly、Secure、SameSite=Lax 的加密会话 Cookie，不接触 GitHub access token。
 
 ### 网页内直接创建 PR（可选）
 
-在“内存草稿 / 完整变更清单”中点击“直接提交 PR（无需先下载再上传）”：
+使用纯静态服务器或 GitHub Pages 预览时，登录功能会显示为未启用，导出维护包和人工 PR 流程仍可用。部署 Worker 后，应先在页面顶部登录 GitHub，再开始编辑；OAuth 会重新加载页面，已有内存草稿不会跨登录跳转保留。随后在“内存草稿 / 完整变更清单”中点击“直接提交 PR（无需先下载再上传）”：
 
 1. 确认变更文件列表。
 2. 填写或调整分支名、commit message、PR 标题、PR 描述。
-3. 输入 GitHub Token（建议 fine-grained PAT，仓库最小权限：Contents `Read and write`、Pull requests `Read and write`）。
+3. 点击“使用 GitHub 登录”完成 GitHub App 授权。GitHub App 需要目标仓库的 Contents `Read and write`、Pull requests `Read and write` 和 Metadata `Read-only` 权限。
 4. 勾选确认后提交。页面会先校验远端基线文件是否仍与当前加载时一致；若不一致会拒绝提交并提示刷新重试。
 5. 成功后显示可访问的 PR 链接。
 
-常见失败会给出明确提示：认证失败 / 权限不足、分支重名、远端文件已变化、API 限流、PR 创建失败。若分支已创建但 PR 创建失败，页面会尝试回滚该临时分支，避免产生半完成状态。
+常见失败会给出明确提示：登录失效、App 未安装或权限不足、分支重名、远端文件已变化、API 限流、PR 创建失败。若分支已创建但 PR 创建失败，服务端会尝试回滚该临时分支；回滚失败会明确提示人工清理。
+
+### Cloudflare Worker 配置
+
+`wrangler.jsonc` 已配置 `worker/index.js` 处理 `/api/*`，其余路径由 `dist/` 静态资源绑定提供。GitHub App 的 callback URL 应设置为：
+
+```text
+https://YOUR_DEPLOYMENT_HOST/api/auth/callback
+```
+
+部署前设置三个 Worker secrets：
+
+```sh
+npx wrangler secret put GITHUB_CLIENT_ID
+npx wrangler secret put GITHUB_CLIENT_SECRET
+openssl rand -base64 32 | tr '+/' '-_' | tr -d '=' | npx wrangler secret put SESSION_SECRET
+npm run build
+npx wrangler deploy
+```
+
+`SESSION_SECRET` 必须是 base64url 编码的 32 字节随机密钥。轮换它会立即注销现有会话。GitHub App 建议启用 expiring user access tokens；Worker 会使用 refresh token 自动续期。服务端固定读取部署产物中的 `site-config.json` 和 `source-data.json`，只接受 `data/vocabulary.json` 与 `data/instruments/<id>.json`，重建完整候选数据集并校验审核迁移；前端不能指定其他仓库、默认分支或任意文件路径。
 
 将文件夹放入你明确选择可见性的 GitHub 仓库后，在 `config/site.json` 填写：
 

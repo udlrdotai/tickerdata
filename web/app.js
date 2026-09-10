@@ -1,7 +1,7 @@
 import { validateDataset, validateReviewTransitions } from '../src/validation.js';
 import { SCHEMA_VERSION, emptyInstrument, emptyEtf, stableStringify, normalizeSymbol } from '../src/model.js';
 import { clone, matchesRecord, prepareRecord, references, applyVocabulary, mergeVocabulary, changedFiles, githubLinks, prepareImportedDataset, assertCurrentImportVersion, downgradeRelatedReviews, industryChoices, changeIndustrySelection } from './editor-model.js';
-import { createPullRequestFromDraft, defaultPrDraft } from './github-pr.js';
+import { createPullRequestFromDraft, defaultPrDraft, getGitHubSession, logoutGitHub } from './github-pr.js';
 
 const app = document.querySelector('#app');
 const state = {
@@ -9,7 +9,7 @@ const state = {
   vocabKind: 'tags', vocabId: null, dirty: false,
   filters: { query: '', type: '', tag: '', review: '' },
   exported: new Map(),
-  pr: { token: '', branch: '', commitMessage: '', title: '', body: '', confirm: false, submitting: false, url: '', fingerprint: '' },
+  pr: { session: { enabled: false, authenticated: false, user: null }, branch: '', commitMessage: '', title: '', body: '', confirm: false, submitting: false, url: '', fingerprint: '' },
 };
 const reviewNames = { pending: '待审核', needs_review: '需复核', reviewed: '已人工审核' };
 const typeNames = { stock: '股票', etf: 'ETF', other: '其他' };
@@ -237,7 +237,7 @@ function renderExports(parent) {
     panel.append(node('p', '先在仓库目录运行第一条命令，检查完整修改前 / 后差异及源数据哈希；再将第二条命令中的 HASH 替换为此次预览输出的哈希。源数据已变化时请重新预览，不要绕过并发保护。', 'hint'));
     const submit = node('details');
     submit.append(node('summary', '直接提交 PR（无需先下载再上传）'));
-    submit.append(node('p', '此方式会直接调用 GitHub API：先校验远端基线是否仍与当前页面初始加载一致，再一次性创建新分支、提交全部变更并创建 PR。下载导出仍可作为备用方式。', 'hint'));
+    submit.append(node('p', '登录 GitHub 后由本站服务端校验部署快照、远端基线和完整候选数据，再一次性创建新分支、提交全部变更并创建 PR。浏览器不会接触 GitHub Token。', 'hint'));
     const form = node('div', null, 'pr-form');
     const prField = (title, value, hint, multiline = false) => {
       const control = node(multiline ? 'textarea' : 'input');
@@ -246,10 +246,25 @@ function renderExports(parent) {
       field(form, title, control, hint);
       return control;
     };
-    const token = prField('GitHub Token（仅本页内存，提交后即清空）', state.pr.token, '需要 contents:write 与 pull_requests:write。不要把 Token 写入数据字段。');
-    token.type = 'password';
-    token.autocomplete = 'off';
-    token.addEventListener('input', () => { state.pr.token = token.value; });
+    const auth = node('div', null, 'auth-status');
+    if (state.pr.session.authenticated) {
+      const user = state.pr.session.user;
+      const avatar = node('img');
+      avatar.src = user.avatarUrl;
+      avatar.alt = '';
+      avatar.width = 32;
+      avatar.height = 32;
+      auth.append(avatar, node('span', `已登录 GitHub：${user.login}`), button('退出登录', async () => {
+        await logoutGitHub();
+        state.pr.session = { enabled: true, authenticated: false, user: null };
+        render();
+      }));
+    } else if (state.pr.session.enabled) {
+      auth.append(node('span', '尚未登录 GitHub。请先导出当前草稿，再使用页面顶部的登录按钮；OAuth 跳转会重新加载页面。', 'warning'));
+    } else {
+      auth.append(node('span', '当前静态预览未启用 GitHub App 登录；仍可导出维护包手动提交。', 'warning'));
+    }
+    form.append(auth);
     const branch = prField('新分支名', state.pr.branch);
     branch.addEventListener('input', () => { state.pr.branch = branch.value; });
     const commitMessage = prField('提交信息（commit message）', state.pr.commitMessage);
@@ -275,24 +290,23 @@ function renderExports(parent) {
       render();
       try {
         const result = await createPullRequestFromDraft({
-          config: state.config,
-          initial: state.initial,
           files,
-          token: state.pr.token,
           branch: state.pr.branch,
           commitMessage: state.pr.commitMessage,
           title: state.pr.title,
           body: state.pr.body,
         });
         state.pr.url = result.url;
-        state.pr.token = '';
         report(`PR 创建成功：${result.url}`);
+      } catch (error) {
+        if (error?.code === 'auth') state.pr.session = { enabled: true, authenticated: false, user: null };
+        throw error;
       } finally {
         state.pr.submitting = false;
         render();
       }
     }, 'primary');
-    submitButton.disabled = state.pr.submitting;
+    submitButton.disabled = state.pr.submitting || !state.pr.session.authenticated;
     actions.append(submitButton);
     form.append(actions);
     if (state.pr.url) {
@@ -318,8 +332,30 @@ function render() {
   instructions.append(node('p', '加载源数据 → 人工编辑 / 审核 → 全数据集校验 → 保存内存草稿 → （可选）直接创建 PR，或导出全部变更文件再手动提交 → 仓库校验及发布流程。'));
   instructions.append(node('p', '仓库导入支持单条证券、完整词表及完整维护包：先运行 npm run import -- 文件.json 预览；确认差异后执行 npm run import -- 文件.json --apply --expect HASH（HASH 使用预览输出的源数据哈希）。合并词条请使用完整维护包，避免分步导入破坏引用。'));
   instructions.append(node('p', '隐私：source-data.json 包含待审核、需复核等完整维护记录。若本页面公开托管，这些记录同样可被公开下载。审核状态不是访问控制。请勿输入密钥、密码、个人敏感信息或非公开资料。'));
-  instructions.append(node('p', '本页默认只请求同目录的 source-data.json 和 site-config.json。使用“提交 PR”时会直接请求 GitHub API；Token 仅存在当前页面内存，不写入 localStorage、源数据或仓库文件。'));
+  instructions.append(node('p', '本页默认只请求同目录的 source-data.json 和 site-config.json。GitHub 登录令牌仅由同源服务端持有并封装在 HttpOnly 加密会话中，不写入页面、localStorage、源数据或仓库文件。'));
   app.append(instructions);
+  if (state.pr.session.enabled) {
+    const githubAuth = node('div', null, 'panel auth-status');
+    if (state.pr.session.authenticated) {
+      const user = state.pr.session.user;
+      const avatar = node('img');
+      avatar.src = user.avatarUrl;
+      avatar.alt = '';
+      avatar.width = 32;
+      avatar.height = 32;
+      githubAuth.append(avatar, node('span', `GitHub 已登录：${user.login}`), button('退出登录', async () => {
+        await logoutGitHub();
+        state.pr.session = { enabled: true, authenticated: false, user: null };
+        render();
+      }));
+    } else {
+      githubAuth.append(node('span', '提交 PR 前请先登录 GitHub。登录会重新加载页面，请在开始编辑前完成。'), button('使用 GitHub 登录', () => {
+        if (state.dirty || changedFiles(state.initial, state.dataset).length) throw new Error('登录会重新加载页面。请先导出当前草稿，再登录 GitHub。');
+        window.location.assign('/api/auth/login');
+      }, 'primary'));
+    }
+    app.append(githubAuth);
+  }
   app.append(node('p', `已加载源数据：${state.dataset.instruments.length} 条（不代表全部已审核）。实际发布状态：本页未核验；已审核不等于已发布。Pages 配置：${state.config?.pages_enabled ? '已启用' : '未启用或未配置'}。`, 'status-line'));
   const toolbar = node('nav', null, 'toolbar');
   toolbar.setAttribute('aria-label', '维护功能');
@@ -828,7 +864,14 @@ window.addEventListener('beforeunload', (event) => {
 });
 
 async function start() {
-  const responses = await Promise.all([fetch('./source-data.json'), fetch('./site-config.json')]);
+  const [responses, session] = await Promise.all([
+    Promise.all([fetch('./source-data.json'), fetch('./site-config.json')]),
+    getGitHubSession().catch((error) => ({
+      enabled: error?.code !== 'not_configured',
+      authenticated: false,
+      user: null,
+    })),
+  ]);
   for (const response of responses) if (!response.ok) throw new Error(`无法加载本地文件：${response.url}（HTTP ${response.status}）`);
   const [dataset, config] = await Promise.all(responses.map((response) => response.json()));
   assertCurrentImportVersion(dataset);
@@ -837,6 +880,8 @@ async function start() {
   state.initial = clone(dataset);
   state.dataset = clone(dataset);
   state.config = config;
+  state.pr.session = session;
+  if (new URLSearchParams(window.location.search).has('github_login')) history.replaceState(null, '', window.location.pathname);
   render();
 }
 
