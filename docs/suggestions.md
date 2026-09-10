@@ -49,4 +49,4 @@ ETF 缺少股票行业或持仓字段本来就正常。只有明确人工核实�
 
 ## 不在本 MVP 范围
 
-网页内一键 PR 需要 GitHub App 与小型服务端持有凭据，并评估登录、安装权限与请求防护；不能用前端 PAT 或 OAuth client secret 绕过。维护规模足够小的时候，当前导出 + GitHub 人工 PR 更容易审计。
+网页内一键 PR 使用 GitHub App 与同源 Worker 持有凭据，并校验登录状态、安装权限、请求来源、允许路径、完整候选数据集和远端基线；不能用前端 PAT 或 OAuth client secret 绕过。纯静态部署仍保留导出 + GitHub 人工 PR 流程。

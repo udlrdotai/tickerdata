@@ -268,6 +268,19 @@ test('normalization remains available for new records and unconfigured GitHub li
 
 test('direct PR submission form appears after edits and keeps export fallback', async (t) => {
   const page = await pageForTest(t);
+  await page.route(`${origin}/api/auth/session`, (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({
+      enabled: true,
+      authenticated: true,
+      user: {
+        login: 'fixture-maintainer',
+        avatarUrl: 'data:image/gif;base64,R0lGODlhAQABAAAAACw=',
+        profileUrl: 'https://github.com/fixture-maintainer',
+      },
+    }),
+  }));
+  await page.reload();
   await page.getByRole('button', { name: /^NVDA ·/ }).click();
   await page.getByLabel('英文名称', { exact: true }).fill('Direct PR flow fixture');
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
@@ -276,7 +289,9 @@ test('direct PR submission form appears after edits and keeps export fallback', 
   assert.equal(await page.getByLabel('提交信息（commit message）', { exact: true }).inputValue() !== '', true);
   assert.equal(await page.getByLabel('PR 标题', { exact: true }).inputValue() !== '', true);
   assert.match(await page.getByLabel('PR 描述', { exact: true }).inputValue(), /变更文件/);
-  await page.getByLabel('GitHub Token（仅本页内存，提交后即清空）', { exact: true }).fill('fixture-token');
+  assert.equal(await page.getByText('已登录 GitHub：fixture-maintainer', { exact: true }).count(), 1);
+  assert.equal(await page.getByText('GitHub 已登录：fixture-maintainer', { exact: true }).count(), 1);
+  assert.equal(await page.getByLabel(/GitHub Token/).count(), 0);
   await page.getByRole('button', { name: '提交 PR', exact: true }).click();
   assert.match(await page.locator('#messages').textContent(), /请先确认本次将提交全部变更文件/);
   await page.getByRole('checkbox', { name: /我已确认将一次性提交以上/ }).check();

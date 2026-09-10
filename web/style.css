@@ -58,6 +58,8 @@ summary { cursor: pointer; font-weight: 600; }
 .checkbox input { margin-top: .4rem; }
 .status-line { font-size: .9rem; margin: .7rem 0; }
 .pr-form { margin-top: .8rem; display: grid; gap: .6rem; }
+.auth-status { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; }
+.auth-status img { border-radius: 50%; }
 .pr-form textarea { min-height: 8rem; }
 .file-list { padding-left: 1.3rem; }
 .file-list li { margin: .7rem 0; }
