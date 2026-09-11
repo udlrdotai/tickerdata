@@ -533,13 +533,24 @@ test('industry vocabulary is browsable in three levels and group edits flag revi
   assert.deepEqual(bundle.vocabulary, vocabulary);
   assert.deepEqual(validateDataset(bundle), []);
   await page.getByRole('button', { name: '＋ 新增词条', exact: true }).click();
+  const newId = page.getByLabel('稳定 ID（新建后不可修改）', { exact: true });
+  assert.equal(await newId.isEditable(), true);
+  await newId.fill('Synthetic Industry');
   await page.getByLabel('中文显示名称', { exact: true }).fill('Synthetic industry system');
+  await page.getByRole('button', { name: '校验并保存词条草稿', exact: true }).click();
+  assert.match(await page.locator('#messages').textContent(), /稳定 ID 格式无效/);
+  await newId.fill('financedatabase');
+  await page.getByRole('button', { name: '校验并保存词条草稿', exact: true }).click();
+  assert.match(await page.locator('#messages').textContent(), /稳定 ID 已存在/);
+  await newId.fill('synthetic-industry-system');
   await page.getByRole('button', { name: '校验并保存词条草稿', exact: true }).click();
   const saved = await downloadJson(page, page.getByRole('button', { name: '导出已保存词表 JSON', exact: true }));
   const added = saved.industry_systems.find((item) => item.name_zh === 'Synthetic industry system');
+  assert.equal(added.id, 'synthetic-industry-system');
   assert.deepEqual(added.industry_groups, []);
   assert.deepEqual(added.sectors, []);
   assert.deepEqual(added.industries, []);
+  assert.equal(await page.getByLabel('稳定 ID（不可修改）', { exact: true }).isEditable(), false);
 });
 
 test('tag rename and referenced deletion stay safe and merged bundles round-trip through browser import', async (t) => {

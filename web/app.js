@@ -750,7 +750,7 @@ function renderVocabulary(sidebar) {
   detail.append(formState);
   links(detail, 'data/vocabulary.json');
   const label = labels.find((item) => item.id === state.vocabId) ?? (state.vocabId === '__new'
-    ? { id: `${kind === 'tags' ? 'tag' : 'system'}-${crypto.randomUUID()}`, name_zh: '', description: '', aliases: [], ...(kind === 'industry_systems' ? { sectors: [], industry_groups: [], industries: [] } : {}) }
+    ? { id: '', name_zh: '', description: '', aliases: [], ...(kind === 'industry_systems' ? { sectors: [], industry_groups: [], industries: [] } : {}) }
     : null);
   if (label) {
     if (kind === 'industry_systems') renderIndustryTree(detail, label);
@@ -789,8 +789,17 @@ function renderLabelForm(parent, kind, label, exists) {
   form.dataset.labelForm = 'true';
   form.addEventListener('input', () => { form.dataset.changed = 'true'; });
   const group = section(form, exists ? '编辑词条（保留稳定 ID）' : '新增词条');
-  const id = input(group, '稳定 ID（不可修改）', label.id);
-  id.readOnly = true;
+  const id = input(
+    group,
+    exists ? '稳定 ID（不可修改）' : '稳定 ID（新建后不可修改）',
+    label.id,
+    exists ? null : '填写与词义相关的英文小写 ID，例如 satellite-communication；可使用数字和连字符，最长 100 个字符。',
+  );
+  id.readOnly = exists;
+  id.maxLength = 100;
+  id.pattern = '[a-z][a-z0-9]*(?:-[a-z0-9]+)*';
+  id.autocomplete = 'off';
+  id.spellcheck = false;
   const name = input(group, '中文显示名称', label.name_zh);
   const description = input(group, '定义 / 说明', label.description, null, true);
   const aliases = input(group, '别名（每行一个）', label.aliases.join('\n'), '用于统一称呼。不能与同类词条名称 / 别名重复。', true);
@@ -799,14 +808,21 @@ function renderLabelForm(parent, kind, label, exists) {
   }
   form.append(button('校验并保存词条草稿', () => {
     noAdvancedChanges();
+    const nextId = exists ? label.id : id.value.trim();
+    if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(nextId)) {
+      throw new Error('稳定 ID 格式无效：请填写英文小写语义词，可使用数字和单个连字符分隔，且必须以字母开头。');
+    }
+    if (!exists && state.dataset.vocabulary[kind].some((item) => item.id === nextId)) {
+      throw new Error(`稳定 ID 已存在：${nextId}。请使用另一个能区分词义的 ID。`);
+    }
     const vocabulary = clone(state.dataset.vocabulary);
-    const next = { ...clone(label), name_zh: name.value.trim(), description: description.value, aliases: aliases.value.split('\n').map((value) => value.trim()).filter(Boolean) };
+    const next = { ...clone(label), id: nextId, name_zh: name.value.trim(), description: description.value, aliases: aliases.value.split('\n').map((value) => value.trim()).filter(Boolean) };
     const index = vocabulary[kind].findIndex((item) => item.id === label.id);
     if (index === -1) vocabulary[kind].push(next);
     else vocabulary[kind][index] = next;
     saveVocabulary(vocabulary);
     if (!state.dirty) {
-      state.vocabId = label.id;
+      state.vocabId = next.id;
       render();
       report('词条草稿已保存；完整变更文件见上方清单。尚未提交或发布。');
     }
