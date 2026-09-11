@@ -4,6 +4,9 @@
   "compatibility_date": "2026-09-10",
   "main": "worker/index.js",
   "workers_dev": true,
+  "vars": {
+    "GITHUB_CLIENT_ID": "Iv23likzkUqlwf6pI7nX"
+  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
@@ -12,5 +15,17 @@
   },
   "observability": {
     "enabled": true
-  }
+  },
+  "secrets_store_secrets": [
+    {
+      "binding": "GITHUB_CLIENT_SECRET",
+      "store_id": "d74e1f2387804ce68b51bd18155dbb05",
+      "secret_name": "tickerdata-maintainer-client-secret"
+    },
+    {
+      "binding": "SESSION_SECRET",
+      "store_id": "d74e1f2387804ce68b51bd18155dbb05",
+      "secret_name": "tickerdata-session-secret"
+    }
+  ]
 }
