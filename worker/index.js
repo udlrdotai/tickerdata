@@ -56,11 +56,15 @@ function base64UrlDecode(value) {
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
+async function secretValue(binding) {
+  return typeof binding === 'string' ? binding : binding.get();
+}
+
 async function encryptionKey(env) {
   if (!env.SESSION_SECRET) throw new ApiError(503, 'not_configured', '服务端尚未配置 SESSION_SECRET。');
   let raw;
   try {
-    raw = base64UrlDecode(env.SESSION_SECRET);
+    raw = base64UrlDecode(await secretValue(env.SESSION_SECRET));
   } catch {
     throw new ApiError(503, 'not_configured', 'SESSION_SECRET 必须是 base64url 编码的 32 字节密钥。');
   }
@@ -107,12 +111,13 @@ function callbackUrl(request) {
 
 async function tokenRequest(env, values) {
   requireGitHubConfig(env);
+  const clientSecret = await secretValue(env.GITHUB_CLIENT_SECRET);
   const response = await fetch('https://github.com/login/oauth/access_token', {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: env.GITHUB_CLIENT_ID,
-      client_secret: env.GITHUB_CLIENT_SECRET,
+      client_secret: clientSecret,
       ...values,
     }),
   });
