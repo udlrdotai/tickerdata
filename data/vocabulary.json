@@ -1160,14 +1160,6 @@
       "description": "比特币资产直接或基金敞口；区别于企业财库标签。",
       "id": "bitcoin",
       "name_zh": "比特币"
-    },
-    {
-      "aliases": [
-        "Neocloud"
-      ],
-      "description": "新型云计算",
-      "id": "tag-ace22d5a-2e58-4a36-8162-1e211cbf8faf",
-      "name_zh": "新型云"
     }
   ]
 }
