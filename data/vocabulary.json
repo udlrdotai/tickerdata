@@ -1149,9 +1149,9 @@
       "aliases": [
         "美债长久期"
       ],
-      "description": "长期限美国国债敞口。",
+      "description": "美国长期限国债敞口。",
       "id": "us-long-treasury",
-      "name_zh": "长期美国国债"
+      "name_zh": "美国长期国债"
     },
     {
       "aliases": [
