@@ -267,6 +267,10 @@ function expectedContent(initial, path) {
   return initial.instruments.find((record) => record.id === id);
 }
 
+export function jsonContentMatches(raw, expected) {
+  return stableStringify(JSON.parse(raw)) === stableStringify(expected);
+}
+
 async function loadAssetJson(request, env, path) {
   const response = await env.ASSETS.fetch(new URL(path, request.url));
   if (!response.ok) throw new ApiError(503, 'assets', `无法读取部署资源：${path}`);
@@ -307,7 +311,13 @@ async function createPullRequest(request, env, accessToken) {
     }
     const payload = await response.json();
     const current = new TextDecoder().decode(base64UrlDecode(String(payload.content ?? '').replace(/\n/g, '').replace(/\+/g, '-').replace(/\//g, '_')));
-    if (expected === undefined || current !== stableStringify(expected)) {
+    let matches = false;
+    try {
+      matches = expected !== undefined && jsonContentMatches(current, expected);
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+    }
+    if (!matches) {
       throw new ApiError(409, 'source_changed', `文件 ${file.path} 已在远端发生变化，请刷新页面后重试。`);
     }
   }
