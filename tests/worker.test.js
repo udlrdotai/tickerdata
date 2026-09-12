@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyFiles } from '../worker/index.js';
+import { applyFiles, jsonContentMatches } from '../worker/index.js';
 import { createDatasetFixture } from './fixtures/dataset.js';
 
 test('worker reconstructs and validates an allowed submission', () => {
@@ -33,5 +33,21 @@ test('worker rejects arbitrary paths, mismatched IDs, and invalid datasets', () 
   assert.throws(
     () => applyFiles(initial, [{ path: `data/instruments/${invalid.id}.json`, content: invalid }]),
     /未通过数据校验/,
+  );
+});
+
+test('worker compares remote JSON by content rather than formatting', () => {
+  const expected = {
+    classification: {
+      source_ids: ['manual-example'],
+      tag_ids: ['us-long-treasury'],
+    },
+  };
+  const differentlyFormatted = '{\n  "classification": {\n    "source_ids": [\n      "manual-example"\n    ],\n    "tag_ids": ["us-long-treasury"]\n  }\n}\n';
+
+  assert.equal(jsonContentMatches(differentlyFormatted, expected), true);
+  assert.equal(
+    jsonContentMatches(differentlyFormatted.replace('us-long-treasury', 'different-tag'), expected),
+    false,
   );
 });
