@@ -3,7 +3,9 @@
     "source_ids": [
       "manual-example"
     ],
-    "tag_ids": ["us-long-treasury"]
+    "tag_ids": [
+      "us-long-treasury"
+    ]
   },
   "etf": {
     "asset_class": null,
@@ -40,7 +42,7 @@
   "review": {
     "reviewed_at": null,
     "reviewer": null,
-    "status": "pending"
+    "status": "needs_review"
   },
   "schema_version": "3.0.0",
   "security_type": "etf",
