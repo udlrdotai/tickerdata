@@ -4,41 +4,45 @@
       "manual-example"
     ],
     "tag_ids": [
-      "ai",
-      "ai-cloud"
+      "ai-cloud",
+      "neocloud"
     ]
   },
   "etf": null,
   "id": "ins-000002",
   "industry": {
     "industry_group_id": "software-services",
-    "industry_id": "software",
+    "industry_id": "it-services",
     "sector_id": "information-technology",
-    "source_ids": ["financedatabase-equities"],
+    "source_ids": [
+      "financedatabase-equities"
+    ],
     "system_id": "financedatabase"
   },
   "issuer": {
-    "country": null,
+    "country": "US",
     "id": null
   },
-  "listing_status": "unknown",
+  "listing_status": "active",
   "name": {
-    "en": null,
+    "en": "CoreWeave",
     "zh": null
   },
   "notes": "初始化占位样例；仅采用用户提供的示例语义，未经独立核实。名称、MIC、上市状态及未核实属性留空或 unknown。请逐项核实后再填写审核人和时间；不可直接作为已审核事实。内部 ID 是本项目分配的标识，不是官方证券代码。",
   "related_instrument_ids": [],
   "review": {
-    "reviewed_at": null,
-    "reviewer": null,
-    "status": "pending"
+    "reviewed_at": "2026-09-13T08:00:05.706Z",
+    "reviewer": "gankthisway",
+    "status": "reviewed"
   },
   "schema_version": "3.0.0",
   "security_type": "stock",
   "sources": [
     {
       "accessed_at": "2026-09-08T01:03:47Z",
-      "fields": ["/industry"],
+      "fields": [
+        "/industry"
+      ],
       "id": "financedatabase-equities",
       "kind": "provider",
       "label": "FinanceDatabase CRWV (NMS/XNAS) 原值：Information Technology → Software & Services → Software。仅记录上游分类，待人工审核，不替代 AI 算力主主题。",
@@ -59,7 +63,7 @@
     "aliases": [],
     "canonical": "CRWV",
     "history": [],
-    "mic": null,
+    "mic": "XNAS",
     "original": "CRWV"
   }
 }
