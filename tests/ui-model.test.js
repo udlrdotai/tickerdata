@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SCHEMA_VERSION, emptyInstrument } from '../src/model.js';
 import { validateDataset, validateReviewTransitions } from '../src/validation.js';
-import { clone, matchesRecord, prepareRecord, references, applyVocabulary, mergeVocabulary, changedFiles, githubLinks, prepareImportedDataset, downgradeRelatedReviews, industryChoices, changeIndustrySelection } from '../web/editor-model.js';
+import { clone, matchesRecord, prepareRecord, references, applyVocabulary, mergeVocabulary, changedFiles, githubLinks, downgradeRelatedReviews, industryChoices, changeIndustrySelection } from '../web/editor-model.js';
 
 function fixture() {
   const record = emptyInstrument('ins-example');
@@ -124,7 +124,6 @@ test('industry group edits and vocabulary changes downgrade reviews without chan
   assert.deepEqual(next.instruments[0].industry, record.industry);
   assert.deepEqual(validateDataset(next), []);
   assert.deepEqual(validateReviewTransitions(dataset, next), []);
-  assert.deepEqual(prepareImportedDataset(dataset, JSON.parse(JSON.stringify(next))), next);
   assert.deepEqual(changedFiles(dataset, next).map((file) => file.path), ['data/vocabulary.json', 'data/instruments/ins-example.json']);
   const missingSource = clone(dataset);
   missingSource.instruments[0].industry.source_ids = [];
@@ -163,48 +162,13 @@ test('stable IDs cannot be changed and reviewed edits require explicit re-review
   assert.ok(Date.parse(approved.review.reviewed_at) <= finishedAt);
 });
 
-test('import cannot silently claim a new human review', () => {
+test('new or changed records cannot silently claim a human review', () => {
   const record = fixture().instruments[0];
   assert.equal(prepareRecord(undefined, record).review.status, 'needs_review');
   const previous = clone(record);
   previous.review.status = 'pending';
   assert.equal(prepareRecord(previous, record).review.status, 'needs_review');
   assert.equal(prepareRecord(undefined, emptyInstrument('ins-new')).review.status, 'pending');
-});
-
-test('full maintenance bundle reimport preserves all dependent edits and rejects malformed shape', () => {
-  const current = fixture();
-  const record = current.instruments[0];
-  record.classification.source_ids = ['manual'];
-  record.sources = [{ id: 'manual', kind: 'manual', label: 'Fixture rationale', url: null, accessed_at: null, fields: ['/classification'] }];
-  const bundle = mergeVocabulary(current, 'tags', 'tag-old', 'tag-target');
-  const imported = prepareImportedDataset(current, JSON.parse(JSON.stringify(bundle)));
-  assert.deepEqual(validateDataset(imported), []);
-  assert.deepEqual(imported, bundle);
-  assert.deepEqual(validateReviewTransitions(current, imported), []);
-  assert.throws(() => prepareImportedDataset(current, { instruments: [null] }), /导入结构无效/);
-});
-
-test('legacy imports fail with explicit migration guidance at every versioned level', () => {
-  const current = fixture();
-  for (const version of ['1.0.0', '2.0.0']) {
-    for (const part of ['bundle', 'vocabulary', 'instrument']) {
-      const legacy = clone(current);
-      const target = part === 'bundle' ? legacy : part === 'vocabulary' ? legacy.vocabulary : legacy.instruments[0];
-      target.schema_version = version;
-      assert.throws(() => prepareImportedDataset(current, legacy), /npm run migrate -- legacy.json/);
-    }
-  }
-});
-
-test('current imports reject obsolete theme fields instead of silently dropping them', () => {
-  const current = fixture();
-  const recordPayload = clone(current);
-  recordPayload.instruments[0].classification.primary_theme_id = 'tag-old';
-  assert.throws(() => prepareImportedDataset(current, recordPayload), /导入结构无效/);
-  const vocabularyPayload = clone(current);
-  vocabularyPayload.vocabulary.themes = [];
-  assert.throws(() => prepareImportedDataset(current, vocabularyPayload), /导入结构无效/);
 });
 
 test('explicit review accepts zero tags and preserves independent fields and evidence', () => {
@@ -267,7 +231,7 @@ test('referenced deletion is refused; unreferenced deletion is allowed', () => {
   assert.equal(references(initial, 'tags', 'tag-old').length, 1);
 });
 
-test('tag merging is immutable, atomic, preserves aliases and exports every changed file', () => {
+test('tag merging is immutable, atomic, preserves aliases and lists every changed file', () => {
   const initial = fixture();
   const targetRecord = clone(initial.instruments[0]);
   targetRecord.id = 'ins-target';
@@ -363,9 +327,8 @@ test('GitHub links require a valid repository and encode branch and file paths',
   }
   const config = { repository_url: 'https://github.com/owner/repo/', branch: 'feature/中文' };
   const links = githubLinks(config, 'data/中文 file.json');
-  assert.equal(links.length, 3);
+  assert.equal(links.length, 2);
   assert.equal(links[0][1], 'https://github.com/owner/repo/blob/feature%2F%E4%B8%AD%E6%96%87/data/%E4%B8%AD%E6%96%87%20file.json');
-  assert.ok(links[2][1].includes('/commits/feature%2F'));
-  assert.equal(githubLinks(config, 'data/instruments/ins-new.json', false)[0][1],
-    'https://github.com/owner/repo/new/feature%2F%E4%B8%AD%E6%96%87?filename=data%2Finstruments%2Fins-new.json');
+  assert.ok(links[1][1].includes('/commits/feature%2F'));
+  assert.deepEqual(githubLinks(config, 'data/instruments/ins-new.json', false), []);
 });

@@ -1,6 +1,6 @@
 import { validateDataset, validateReviewTransitions } from '../src/validation.js';
-import { SCHEMA_VERSION, emptyInstrument, emptyEtf, stableStringify, normalizeSymbol } from '../src/model.js';
-import { clone, matchesRecord, prepareRecord, references, applyVocabulary, mergeVocabulary, changedFiles, githubLinks, prepareImportedDataset, assertCurrentImportVersion, downgradeRelatedReviews, industryChoices, changeIndustrySelection } from './editor-model.js';
+import { emptyInstrument, emptyEtf, stableStringify, normalizeSymbol } from '../src/model.js';
+import { clone, matchesRecord, prepareRecord, references, applyVocabulary, mergeVocabulary, changedFiles, githubLinks, downgradeRelatedReviews, industryChoices, changeIndustrySelection } from './editor-model.js';
 import { createPullRequestFromDraft, defaultPrDraft, getGitHubSession, logoutGitHub } from './github-pr.js';
 
 const app = document.querySelector('#app');
@@ -8,7 +8,6 @@ const state = {
   initial: null, dataset: null, config: null, mode: 'records', selected: null,
   vocabKind: 'tags', vocabId: null, dirty: false,
   filters: { query: '', type: '', tag: '', review: '' },
-  exported: new Map(),
   pr: { session: { enabled: false, authenticated: false, user: null }, branch: '', commitMessage: '', title: '', body: '', confirm: false, submitting: false, url: '', fingerprint: '' },
 };
 const reviewNames = { pending: '待审核', needs_review: '需复核', reviewed: '已人工审核' };
@@ -67,7 +66,7 @@ function navigate(action) {
 
 function validate(candidate) {
   const errors = validateDataset(candidate);
-  if (errors.length) throw new Error(`未保存 / 未导出。请修正以下问题：\n${errors.join('\n')}`);
+  if (errors.length) throw new Error(`未保存。请修正以下问题：\n${errors.join('\n')}`);
 }
 
 function commit(candidate, message) {
@@ -183,7 +182,7 @@ function links(parent, path, exists = true) {
   const items = githubLinks(state.config, path, exists);
   const group = node('div', null, 'links');
   if (!items.length) {
-    parent.append(node('p', '未配置有效 GitHub 仓库地址：请手动将导出文件放入仓库。', 'muted'), group);
+    parent.append(node('p', exists ? '未配置有效 GitHub 仓库地址。' : '提交 PR 后将创建对应源文件。', 'muted'), group);
     return group;
   }
   for (const [label, url] of items) {
@@ -194,7 +193,6 @@ function links(parent, path, exists = true) {
     group.append(link);
   }
   parent.append(group);
-  if (!exists) parent.append(node('p', '此 ID 尚不在已加载源数据中；新建链接只预填文件路径，需自行粘贴 JSON。', 'hint'));
   return group;
 }
 
@@ -211,36 +209,14 @@ function diff(parent, before, after) {
   parent.append(box);
 }
 
-function assertExportable() {
-  if (state.dirty) throw new Error('表单仍有未保存内容。请先校验并保存草稿，或明确放弃修改，再导出。');
+function assertSubmittable() {
+  if (state.dirty) throw new Error('表单仍有未保存内容。请先校验并保存草稿，或明确放弃修改，再提交 PR。');
   validate(state.dataset);
   const transitionErrors = validateReviewTransitions(state.initial, state.dataset);
   if (transitionErrors.length) throw new Error(`审核变更校验失败：\n${transitionErrors.join('\n')}`);
 }
 
-function download(filename, value) {
-  const blob = new Blob([stableStringify(value)], { type: 'application/json;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = node('a');
-  link.href = url;
-  link.download = filename;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-function exportFile(path, content) {
-  assertExportable();
-  const files = changedFiles(state.initial, state.dataset);
-  if (files.length > 1 && !window.confirm(`共有 ${files.length} 个变更文件。单文件可能依赖其他草稿；请同时导出并在同一提交中应用完整清单，或使用完整维护包。继续下载此单文件？`)) return;
-  download(path.split('/').at(-1), content);
-  state.exported.set(path, stableStringify(content));
-  render();
-  report(`已触发下载 ${path}。请确认浏览器下载成功；导出 ≠ 提交 ≠ 发布。`);
-}
-
-function renderExports(parent) {
+function renderSubmission(parent) {
   const files = changedFiles(state.initial, state.dataset);
   const fingerprint = files.map((file) => `${file.path}\n${stableStringify(file.content)}`).join('\n---\n');
   if (state.pr.fingerprint !== fingerprint) {
@@ -250,29 +226,18 @@ function renderExports(parent) {
   const panel = node('details', null, 'panel');
   panel.open = files.length > 0;
   panel.append(node('summary', `内存草稿 / 完整变更清单：${files.length} 个文件`));
-  panel.append(node('p', '所有草稿只存在于此页面内存。下载不会清除草稿。刷新、关闭或重新加载页面会丢失全部草稿；请先导出。', 'warning'));
+  panel.append(node('p', '草稿只存在于此页面内存，刷新、关闭或重新登录都会丢失。请在开始编辑前登录 GitHub，并及时提交 PR。', 'warning'));
   if (!files.length) panel.append(node('p', '当前没有已保存的本地草稿。', 'muted'));
   const fileList = node('ul', null, 'file-list');
   for (const file of files) {
     const item = node('li');
-    item.append(node('code', file.path), node('span', state.exported.get(file.path) === stableStringify(file.content) ? ' · 已触发此版本下载，未确认提交 ' : ' · 未导出此版本 '));
-    item.append(button('下载 JSON', () => exportFile(file.path, file.content)));
+    item.append(node('code', file.path), node('span', ' · 等待提交 '));
     fileList.append(item);
   }
   panel.append(fileList);
   if (files.length) {
-    panel.append(button('导出完整维护包（全部源记录及词表）', () => {
-      assertExportable();
-      download('tickerdata-maintenance-bundle.json', state.dataset);
-      for (const file of files) state.exported.set(file.path, stableStringify(file.content));
-      render();
-      report('已触发完整维护包下载。包内包含 schema_version、全部源 instruments（包括待审核记录）及完整 vocabulary。\n先预览：npm run import -- tickerdata-maintenance-bundle.json\n确认差异后应用：npm run import -- tickerdata-maintenance-bundle.json --apply --expect HASH\n将 HASH 替换为预览输出的源数据哈希。随后校验并整体提交 / PR；导入不会自动发布。');
-    }, 'primary'));
-    panel.append(node('p', `跨词表 / 证券的修改（尤其 ID 合并）必须整体提交。维护包格式为 {schema_version:"${SCHEMA_VERSION}", instruments:[全部源记录], vocabulary:{完整词表}}，含未修改及待审核记录，并非仅已发布数据。使用仓库导入命令，或将各记录写入 data/instruments/<id>.json、词表写入 data/vocabulary.json；校验后将上述全部变更一并提交。`, 'hint'));
-    panel.append(node('pre', 'npm run import -- tickerdata-maintenance-bundle.json\nnpm run import -- tickerdata-maintenance-bundle.json --apply --expect HASH'));
-    panel.append(node('p', '先在仓库目录运行第一条命令，检查完整修改前 / 后差异及源数据哈希；再将第二条命令中的 HASH 替换为此次预览输出的哈希。源数据已变化时请重新预览，不要绕过并发保护。', 'hint'));
     const submit = node('details');
-    submit.append(node('summary', '直接提交 PR（无需先下载再上传）'));
+    submit.append(node('summary', '直接提交 GitHub PR'));
     submit.append(node('p', '登录 GitHub 后由本站服务端校验部署快照、远端基线和完整候选数据，再一次性创建新分支、提交全部变更并创建 PR。浏览器不会接触 GitHub Token。', 'hint'));
     const form = node('div', null, 'pr-form');
     const prField = (title, value, hint, multiline = false) => {
@@ -296,9 +261,9 @@ function renderExports(parent) {
         render();
       }));
     } else if (state.pr.session.enabled) {
-      auth.append(node('span', '尚未登录 GitHub。请先导出当前草稿，再使用页面顶部的登录按钮；OAuth 跳转会重新加载页面。', 'warning'));
+      auth.append(node('span', '尚未登录 GitHub。OAuth 登录会重新加载页面；请放弃当前草稿，登录后再编辑。', 'warning'));
     } else {
-      auth.append(node('span', '当前静态预览未启用 GitHub App 登录；仍可导出维护包手动提交。', 'warning'));
+      auth.append(node('span', '当前部署未启用 GitHub App，无法保存变更。', 'warning'));
     }
     form.append(auth);
     const branch = prField('新分支名', state.pr.branch);
@@ -319,7 +284,7 @@ function renderExports(parent) {
     form.append(confirm);
     const actions = node('div', null, 'actions');
     const submitButton = button(state.pr.submitting ? '提交中…' : '提交 PR', async () => {
-      assertExportable();
+      assertSubmittable();
       if (!state.pr.confirm) throw new Error('请先确认本次将提交全部变更文件。');
       state.pr.submitting = true;
       state.pr.url = '';
@@ -365,8 +330,7 @@ function render() {
   readRecord = null;
   const instructions = node('details', null, 'notice');
   instructions.append(node('summary', '操作流程与隐私边界 · 请先阅读'));
-  instructions.append(node('p', '加载源数据 → 人工编辑 / 审核 → 全数据集校验 → 保存内存草稿 → （可选）直接创建 PR，或导出全部变更文件再手动提交 → 仓库校验及发布流程。'));
-  instructions.append(node('p', '仓库导入支持单条证券、完整词表及完整维护包：先运行 npm run import -- 文件.json 预览；确认差异后执行 npm run import -- 文件.json --apply --expect HASH（HASH 使用预览输出的源数据哈希）。合并词条请使用完整维护包，避免分步导入破坏引用。'));
+  instructions.append(node('p', '使用 GitHub 登录 → 加载源数据 → 人工编辑 / 审核 → 全数据集校验 → 保存内存草稿 → 一次性创建包含全部变更的 GitHub PR → 仓库校验及发布流程。'));
   instructions.append(node('p', '隐私：source-data.json 包含待审核、需复核等完整维护记录。若本页面公开托管，这些记录同样可被公开下载。审核状态不是访问控制。请勿输入密钥、密码、个人敏感信息或非公开资料。'));
   instructions.append(node('p', '本页默认只请求同目录的 source-data.json 和 site-config.json。GitHub 登录令牌仅由同源服务端持有并封装在 HttpOnly 加密会话中，不写入页面、localStorage、源数据或仓库文件。'));
   app.append(instructions);
@@ -386,7 +350,7 @@ function render() {
       }));
     } else {
       githubAuth.append(node('span', '提交 PR 前请先登录 GitHub。登录会重新加载页面，请在开始编辑前完成。'), button('使用 GitHub 登录', () => {
-        if (state.dirty || changedFiles(state.initial, state.dataset).length) throw new Error('登录会重新加载页面。请先导出当前草稿，再登录 GitHub。');
+        if (state.dirty || changedFiles(state.initial, state.dataset).length) throw new Error('登录会重新加载页面并丢失草稿。请放弃当前草稿后再登录 GitHub。');
         window.location.assign('/api/auth/login');
       }, 'primary'));
     }
@@ -405,22 +369,6 @@ function render() {
     state.selected = null;
     draftRecord = emptyInstrument(`ins-${crypto.randomUUID()}`);
   }), 'primary'));
-  const fileInput = node('input');
-  fileInput.type = 'file';
-  fileInput.accept = '.json,application/json';
-  fileInput.hidden = true;
-  fileInput.addEventListener('change', async () => {
-    const file = fileInput.files[0];
-    if (!file) return;
-    try {
-      if (!mayLeave()) return;
-      if (file.size > 10 * 1024 * 1024) throw new Error('导入文件超过 10 MB；请缩小维护包或选择单条证券。');
-      const value = JSON.parse(await file.text());
-      importValue(value);
-    } catch (error) { report(`导入失败：${error.message}`, true); }
-    finally { fileInput.value = ''; }
-  });
-  toolbar.append(button('导入证券 / 词表 / 维护包 JSON', () => fileInput.click()), fileInput);
   app.append(toolbar);
   messages = node('div');
   messages.id = 'messages';
@@ -428,7 +376,7 @@ function render() {
   messages.setAttribute('aria-live', 'polite');
   messages.tabIndex = -1;
   app.append(messages);
-  renderExports(app);
+  renderSubmission(app);
   const layout = node('div', null, 'layout toolbar-layout');
   const aside = node('aside', null, 'panel');
   detail = node('section', null, 'panel');
@@ -441,37 +389,6 @@ function render() {
     if (record) renderRecord(record);
     else detail.append(node('h2', '选择证券开始维护'), node('p', '从左侧搜索并选择记录，或新增证券。待审核样例不能被视为已经确认的交易分类。', 'empty'));
   } else renderVocabulary(aside);
-}
-
-function importValue(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('JSON 顶层必须是单条证券、完整词表或完整维护包对象。');
-  assertCurrentImportVersion(value);
-  let candidate = clone(state.dataset);
-  if ('instruments' in value) {
-    candidate = prepareImportedDataset(state.dataset, value);
-    validate(candidate);
-    if (!window.confirm('将用完整维护包替换当前内存数据集。所有字段与引用将一起校验，导入不视为人工复核；当前未导出的草稿可能被替换。确定继续？')) return;
-    state.mode = 'records';
-    state.selected = null;
-  } else if ('industry_systems' in value) {
-    candidate.vocabulary = value;
-    candidate = prepareImportedDataset(state.dataset, candidate);
-    validate(candidate);
-    if (!window.confirm('词表导入将替换当前内存词表，并将受影响记录标为需复核。确定保存为内存草稿？')) return;
-    state.mode = 'vocabulary';
-    state.vocabId = null;
-  } else {
-    const index = candidate.instruments.findIndex((record) => record.id === value.id);
-    if (index === -1) candidate.instruments.push(value);
-    else candidate.instruments[index] = value;
-    const previous = state.dataset.instruments.find((record) => record.id === value.id);
-    candidate = prepareImportedDataset(state.dataset, candidate);
-    validate(candidate);
-    if (!window.confirm(`${previous ? '将替换同一稳定 ID 的现有记录' : '将以文件中的稳定 ID 新增记录'}：${value.id}。导入不会作为一次人工复核。确定保存为内存草稿？`)) return;
-    state.mode = 'records';
-    state.selected = value.id;
-  }
-  commit(candidate, '导入内容已通过全数据集校验。');
 }
 
 function renderRecordSidebar(parent) {
@@ -738,11 +655,6 @@ function renderRecord(record) {
     diff(preview, before, readRecord());
     preview.querySelector('details').open = true;
   }));
-  actions.append(button('导出已保存的单条 JSON', () => {
-    const saved = state.dataset.instruments.find((item) => item.id === record.id);
-    if (!saved) throw new Error('新增记录需要先校验并保存内存草稿。');
-    exportFile(`data/instruments/${record.id}.json`, saved);
-  }));
   actions.append(button('放弃未保存表单修改', () => navigate(() => {})));
   form.append(actions);
   const preview = node('div');
@@ -834,7 +746,6 @@ function renderVocabulary(sidebar) {
   json.addEventListener('input', () => { advanced.dataset.changed = 'true'; });
   advanced.dataset.vocabularyEditor = 'true';
   detail.append(advanced);
-  detail.append(button('导出已保存词表 JSON', () => exportFile('data/vocabulary.json', state.dataset.vocabulary)));
   detail.append(button('放弃未保存修改', () => navigate(() => {})));
   diff(detail, state.initial.vocabulary, state.dataset.vocabulary);
 }
@@ -925,9 +836,9 @@ function renderLabelForm(parent, kind, label, exists) {
         validate(candidate);
         const files = changedFiles(state.dataset, candidate);
         const description = files.map((file) => file.path).join('\n');
-        if (!window.confirm(`合并 ${label.id} → ${target.value}，将原子修改以下 ${files.length} 个文件：\n${description}\n\n确定保存完整内存草稿？后续必须整体导出并提交。`)) return;
+        if (!window.confirm(`合并 ${label.id} → ${target.value}，将原子修改以下 ${files.length} 个文件：\n${description}\n\n确定保存完整内存草稿？后续必须通过同一个 PR 整体提交。`)) return;
         state.vocabId = target.value;
-        commit(candidate, `已原子合并 ID。此次变更文件：\n${description}\n请导出完整维护包，不能只提交词表。`);
+        commit(candidate, `已原子合并 ID。此次变更文件：\n${description}\n请通过同一个 PR 提交全部文件。`);
       }));
       form.append(mergeBox);
     }
@@ -953,7 +864,6 @@ async function start() {
   ]);
   for (const response of responses) if (!response.ok) throw new Error(`无法加载本地文件：${response.url}（HTTP ${response.status}）`);
   const [dataset, config] = await Promise.all(responses.map((response) => response.json()));
-  assertCurrentImportVersion(dataset);
   const errors = validateDataset(dataset);
   if (errors.length) throw new Error(`源数据校验失败，请修复仓库后重新构建：\n${errors.join('\n')}`);
   state.initial = clone(dataset);
