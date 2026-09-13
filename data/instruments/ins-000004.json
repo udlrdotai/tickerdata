@@ -1,6 +1,8 @@
 {
   "classification": {
-    "tag_ids": []
+    "tag_ids": [
+      "us-large-cap"
+    ]
   },
   "etf": null,
   "id": "ins-000004",
@@ -17,17 +19,17 @@
     "country": null,
     "id": null
   },
-  "listing_status": "unknown",
+  "listing_status": "active",
   "name": {
-    "en": null,
-    "zh": null
+    "en": "Tesla",
+    "zh": "特斯拉"
   },
   "notes": "初始化占位样例；仅采用用户提供的示例语义，未经独立核实。名称、MIC、上市状态及未核实属性留空或 unknown。请逐项核实后再填写审核人和时间；不可直接作为已审核事实。内部 ID 是本项目分配的标识，不是官方证券代码。",
   "related_instrument_ids": [],
   "review": {
-    "reviewed_at": null,
-    "reviewer": null,
-    "status": "pending"
+    "reviewed_at": "2026-09-13T09:58:47.505Z",
+    "reviewer": "gankthisway",
+    "status": "reviewed"
   },
   "schema_version": "4.0.0",
   "security_type": "stock",
@@ -47,7 +49,7 @@
     "aliases": [],
     "canonical": "TSLA",
     "history": [],
-    "mic": null,
+    "mic": "XNAS",
     "original": "TSLA"
   }
 }
