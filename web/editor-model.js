@@ -1,5 +1,4 @@
-import { SCHEMA_VERSION, stableStringify } from '../src/model.js';
-import { validateDatasetShape } from '../src/validation.js';
+import { stableStringify } from '../src/model.js';
 
 export const clone = (value) => JSON.parse(JSON.stringify(value));
 const same = (a, b) => stableStringify(a) === stableStringify(b);
@@ -127,23 +126,6 @@ function markVocabularyChanges(dataset, next) {
   return downgradeRelatedReviews(next);
 }
 
-export function assertCurrentImportVersion(value) {
-  const parts = [value, value?.vocabulary, ...(Array.isArray(value?.instruments) ? value.instruments : [])];
-  if (parts.some((part) => ['1.0.0', '2.0.0'].includes(part?.schema_version))) {
-    throw new Error(`仅支持 schema_version ${SCHEMA_VERSION} 导入；旧版文件请先在仓库运行 npm run migrate -- legacy.json 预览迁移，再按输出指引应用迁移并重新构建。不会自动丢弃旧版分类。`);
-  }
-}
-
-export function prepareImportedDataset(current, candidate) {
-  assertCurrentImportVersion(candidate);
-  const errors = validateDatasetShape(candidate);
-  if (errors.length) throw new Error(`导入结构无效：\n${errors.join('\n')}`);
-  const next = clone(candidate);
-  next.instruments = next.instruments.map((record) =>
-    prepareRecord(current.instruments.find((item) => item.id === record.id), record));
-  return markVocabularyChanges(current, next);
-}
-
 export function mergeVocabulary(dataset, kind, fromId, toId) {
   if (kind !== 'tags') throw new Error('只支持标签的 ID 合并。');
   const next = clone(dataset);
@@ -180,12 +162,12 @@ export function githubLinks(config, path, exists = true) {
   if (!config || typeof config.repository_url !== 'string' ||
       !/^https:\/\/github\.com\/[A-Za-z0-9-]+\/[A-Za-z0-9_.-]+\/?$/.test(config.repository_url) ||
       typeof config.branch !== 'string' || !config.branch.trim()) return [];
+  if (!exists) return [];
   const root = config.repository_url.replace(/\/$/, '');
   const branch = encodeURIComponent(config.branch);
   const encodedPath = path.split('/').map(encodeURIComponent).join('/');
-  return exists ? [
+  return [
     ['源文件', `${root}/blob/${branch}/${encodedPath}`],
-    ['在 GitHub 编辑', `${root}/edit/${branch}/${encodedPath}`],
     ['提交历史', `${root}/commits/${branch}/${encodedPath}`],
-  ] : [['在 GitHub 新建文件', `${root}/new/${branch}?filename=${encodeURIComponent(path)}`]];
+  ];
 }

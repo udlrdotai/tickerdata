@@ -8,7 +8,6 @@ import { chromium } from 'playwright';
 import { stableStringify } from '../src/model.js';
 import { validateDataset } from '../src/validation.js';
 import { createRelease } from '../src/release.js';
-import { prepareImport } from '../scripts/import.js';
 import { createDatasetFixture } from '../tests/fixtures/dataset.js';
 
 let browser;
@@ -81,13 +80,8 @@ async function pageForTest(t, options = {}, source = null, allowExternalRequests
   return page;
 }
 
-async function downloadJson(page, button) {
-  const downloadPromise = page.waitForEvent('download');
-  await button.click();
-  const download = await downloadPromise;
-  const path = resolve(downloads, `${Date.now()}-${download.suggestedFilename()}`);
-  await download.saveAs(path);
-  return JSON.parse(await readFile(path, 'utf8'));
+async function detailAfterJson(page) {
+  return JSON.parse(await page.locator('section[aria-label="编辑详情"] .diff pre').last().textContent());
 }
 
 test('search/filter works at desktop and narrow mobile widths without an external service', async (t) => {
@@ -104,7 +98,7 @@ test('search/filter works at desktop and narrow mobile widths without an externa
   assert.equal(await page.evaluate(() => localStorage.length), 0);
 });
 
-test('only tags and industry remain in the UI and multi-select tags save, export and reimport', async (t) => {
+test('only tags and industry remain in the UI and multi-select tags save to the PR draft', async (t) => {
   const source = createDatasetFixture();
   source.instruments[0].sources.find((item) => item.id === 'manual-example').label = 'Synthetic historical 主主题 evidence, preserved verbatim.';
   const page = await pageForTest(t, {}, source);
@@ -129,20 +123,12 @@ test('only tags and industry remain in the UI and multi-select tags save, export
   for (const value of selection) await tags.locator(`input[value="${value}"]`).check();
   assert.match(await page.locator('#form-state').textContent(), /未保存修改/);
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
-  const exported = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
-  assert.equal(exported.schema_version, '3.0.0');
-  assert.deepEqual([...exported.classification.tag_ids].sort(), selection.sort());
-  assert.deepEqual(Object.keys(exported.classification).sort(), ['source_ids', 'tag_ids']);
-  assert.deepEqual(exported.industry, initial.instruments[0].industry);
-  assert.deepEqual(exported.sources, source.instruments[0].sources);
-  await page.reload();
-  await page.locator('input[type=file]').setInputFiles({
-    name: `${exported.id}.json`, mimeType: 'application/json', buffer: Buffer.from(stableStringify(exported)),
-  });
-  await page.getByText('导入内容已通过全数据集校验。', { exact: false }).waitFor();
-  assert.deepEqual(await page.getByRole('group', { name: '标签（多选）', exact: true }).locator('input:checked').evaluateAll((inputs) =>
-    inputs.map((input) => input.value).sort()), selection);
-  assert.deepEqual(await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true })), exported);
+  const saved = await detailAfterJson(page);
+  assert.equal(saved.schema_version, '3.0.0');
+  assert.deepEqual([...saved.classification.tag_ids].sort(), selection.sort());
+  assert.deepEqual(Object.keys(saved.classification).sort(), ['source_ids', 'tag_ids']);
+  assert.deepEqual(saved.industry, initial.instruments[0].industry);
+  assert.deepEqual(saved.sources, source.instruments[0].sources);
   await page.getByRole('button', { name: '标签 / 行业词表', exact: true }).click();
   assert.equal(await page.getByRole('button', { name: '主主题', exact: true }).count(), 0);
   assert.equal(await page.getByRole('heading', { name: '主题、标签与标准行业词表', exact: true }).count(), 0);
@@ -166,7 +152,7 @@ test('reviewers can explicitly approve records without tags or classification ev
   ['原始代码', '规范代码', 'MIC 交易场所代码', '证券类型', '上市状态', '英文名称', '审核状态', '审核人']);
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
   assert.match(await page.locator('#messages').textContent(), /已通过校验/);
-  const reviewed = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
+  const reviewed = await detailAfterJson(page);
   assert.equal(reviewed.review.status, 'reviewed');
   assert.equal(reviewed.review.reviewer, 'Synthetic optional-tag reviewer');
   assert.ok(Number.isFinite(Date.parse(reviewed.review.reviewed_at)));
@@ -177,25 +163,7 @@ test('reviewers can explicitly approve records without tags or classification ev
   assert.deepEqual(JSON.parse(createRelease({ ...initial, instruments: [reviewed] }).files['instruments.json']).instruments, [reviewed]);
 });
 
-test('v1 and v2 record, vocabulary and bundle imports fail with migration instructions without changing drafts', async (t) => {
-  const page = await pageForTest(t);
-  await page.getByRole('button', { name: /^NVDA ·/ }).click();
-  for (const version of ['1.0.0', '2.0.0']) {
-    for (const payload of [initial.instruments[0], initial.vocabulary, initial]) {
-      await page.getByRole('button', { name: /^NVDA ·/ }).click();
-      await page.locator('input[type=file]').setInputFiles({
-        name: 'legacy.json', mimeType: 'application/json',
-        buffer: Buffer.from(stableStringify({ ...payload, schema_version: version })),
-      });
-      await page.locator('#messages.error').waitFor();
-      assert.match(await page.locator('#messages').textContent(), /npm run migrate -- legacy.json/);
-      assert.equal(await page.getByLabel('英文名称', { exact: true }).inputValue(), initial.instruments[0].name.en);
-    }
-  }
-  assert.deepEqual(await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true })), initial.instruments[0]);
-});
-
-test('current built maintenance source loads and exports without assuming sample counts or review states', async (t) => {
+test('current built maintenance source loads without assuming sample counts or review states', async (t) => {
   const source = JSON.parse(sourceSnapshot);
   const page = await pageForTest(t, {}, sourceSnapshot);
   assert.ok((await page.locator('.status-line').textContent()).includes(`${source.instruments.length} 条`));
@@ -206,8 +174,7 @@ test('current built maintenance source loads and exports without assuming sample
     await page.locator('aside .record-button').nth(index).click();
     assert.equal(await page.locator('section[aria-label="编辑详情"]').getByLabel('审核状态', { exact: true }).inputValue(), record.review.status);
     assert.equal(await page.getByLabel('英文名称', { exact: true }).inputValue(), record.name.en ?? '');
-    const exported = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
-    assert.deepEqual(exported, record);
+    assert.deepEqual(await detailAfterJson(page), record);
   }
 });
 
@@ -216,10 +183,10 @@ test('record utility links and normalization share a compact responsive action r
   await page.getByRole('button', { name: /^BRK.B ·/ }).click();
   const actions = page.getByRole('group', { name: '证券操作', exact: true });
   const normalize = actions.getByRole('button', { name: '由原始代码填入规范代码', exact: true });
-  assert.equal(await actions.getByRole('link').count(), 3);
+  assert.equal(await actions.getByRole('link').count(), 2);
   assert.equal(await normalize.getAttribute('type'), 'button');
   assert.equal(await page.locator('form').getByRole('button', { name: '由原始代码填入规范代码', exact: true }).count(), 0);
-  for (const [index, label] of ['源文件', '在 GitHub 编辑', '提交历史'].entries()) {
+  for (const [index, label] of ['源文件', '提交历史'].entries()) {
     const link = actions.getByRole('link', { name: label, exact: true });
     assert.equal(await link.getAttribute('target'), '_blank');
     assert.equal(await link.getAttribute('rel'), 'noopener noreferrer');
@@ -233,7 +200,7 @@ test('record utility links and normalization share a compact responsive action r
     const style = getComputedStyle(item);
     return { top: rect.top, height: rect.height, fontSize: style.fontSize, padding: style.padding, border: style.border, background: style.backgroundColor };
   }));
-  assert.equal(layout.length, 4);
+  assert.equal(layout.length, 3);
   for (const item of layout) assert.deepEqual(item, layout[0]);
   assert.ok(layout[0].height <= 40);
   assert.equal(await page.getByLabel('规范代码', { exact: true }).inputValue(), 'BRK.B');
@@ -261,7 +228,7 @@ test('normalization remains available for new records and unconfigured GitHub li
   const page = await pageForTest(t);
   await page.getByRole('button', { name: '＋ 新增证券', exact: true }).click();
   let actions = page.getByRole('group', { name: '证券操作', exact: true });
-  assert.equal(await actions.getByRole('link').count(), 1);
+  assert.equal(await actions.getByRole('link').count(), 0);
   await page.getByLabel('原始代码', { exact: true }).fill(' new.test ');
   await actions.getByRole('button', { name: '由原始代码填入规范代码', exact: true }).click();
   assert.equal(await page.getByLabel('规范代码', { exact: true }).inputValue(), 'NEW.TEST');
@@ -278,7 +245,7 @@ test('normalization remains available for new records and unconfigured GitHub li
   assert.match(await page.locator('#form-state').textContent(), /未保存修改/);
 });
 
-test('direct PR submission form appears after edits and keeps export fallback', async (t) => {
+test('direct PR submission is the only persistence path', async (t) => {
   const page = await pageForTest(t);
   await page.route(`${origin}/api/auth/session`, (route) => route.fulfill({
     contentType: 'application/json',
@@ -296,7 +263,7 @@ test('direct PR submission form appears after edits and keeps export fallback', 
   await page.getByRole('button', { name: /^NVDA ·/ }).click();
   await page.getByLabel('英文名称', { exact: true }).fill('Direct PR flow fixture');
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
-  await page.getByText('直接提交 PR（无需先下载再上传）', { exact: true }).click();
+  await page.getByText('直接提交 GitHub PR', { exact: true }).click();
   assert.equal(await page.getByLabel('新分支名', { exact: true }).inputValue() !== '', true);
   assert.equal(await page.getByLabel('提交信息（commit message）', { exact: true }).inputValue() !== '', true);
   assert.equal(await page.getByLabel('PR 标题', { exact: true }).inputValue() !== '', true);
@@ -307,7 +274,8 @@ test('direct PR submission form appears after edits and keeps export fallback', 
   await page.getByRole('button', { name: '提交 PR', exact: true }).click();
   assert.match(await page.locator('#messages').textContent(), /请先确认本次将提交全部变更文件/);
   await page.getByRole('checkbox', { name: /我已确认将一次性提交以上/ }).check();
-  assert.equal(await page.getByRole('button', { name: '导出完整维护包（全部源记录及词表）', exact: true }).count(), 1);
+  assert.equal(await page.getByText(/导出|导入/).count(), 0);
+  assert.equal(await page.locator('input[type=file]').count(), 0);
 });
 
 test('records already reviewed at startup downgrade on edit unless explicitly re-reviewed', async (t) => {
@@ -328,7 +296,7 @@ test('records already reviewed at startup downgrade on edit unless explicitly re
         await page.getByRole('checkbox', { name: /我已人工核验/ }).check();
       }
       await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
-      const edited = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
+      const edited = await detailAfterJson(page);
       assert.equal(edited.review.status, explicit ? 'reviewed' : 'needs_review');
       assert.equal(edited.name.en, 'Synthetic edited startup record');
       assert.equal(edited.id, nvda.id);
@@ -344,7 +312,7 @@ test('records already reviewed at startup downgrade on edit unless explicitly re
   }
 });
 
-test('record edit, explicit human review, downgrade, safe text, validation and export are real browser flows', async (t) => {
+test('record edit, explicit human review, downgrade, safe text and validation are real browser flows', async (t) => {
   const page = await pageForTest(t);
   await page.getByRole('button', { name: /^NVDA ·/ }).click();
   await page.getByLabel('英文名称', { exact: true }).fill('Synthetic browser fixture');
@@ -357,12 +325,12 @@ test('record edit, explicit human review, downgrade, safe text, validation and e
   assert.equal(await page.evaluate(() => window.injected), undefined);
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
   assert.match(await page.locator('#messages').textContent(), /未提交 GitHub/);
-  const approved = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
+  const approved = await detailAfterJson(page);
   assert.equal(approved.review.status, 'reviewed');
   assert.equal(approved.id, 'ins-000001');
   assert.deepEqual(validateDataset({ ...initial, instruments: initial.instruments.map((record) => record.id === approved.id ? approved : record) }), []);
-  const imported = prepareImport(initial, approved).candidate;
-  const release = createRelease(imported);
+  const candidate = { ...initial, instruments: initial.instruments.map((record) => record.id === approved.id ? approved : record) };
+  const release = createRelease(candidate);
   const snapshot = resolve(downloads, 'browser-approved-release');
   await mkdir(snapshot);
   for (const [name, bytes] of Object.entries(release.files)) await writeFile(resolve(snapshot, name), bytes);
@@ -376,13 +344,12 @@ test('record edit, explicit human review, downgrade, safe text, validation and e
   assert.equal('themes.json' in release.files, false);
   await page.getByLabel('英文名称', { exact: true }).fill('Corrected fixture name');
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
-  const edited = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
+  const edited = await detailAfterJson(page);
   assert.equal(edited.review.status, 'needs_review');
   await page.getByLabel('分类来源 ID', { exact: true }).fill('');
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
   assert.match(await page.locator('#messages').textContent(), /classification needs its own source/);
-  await page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }).click();
-  assert.match(await page.locator('#messages').textContent(), /未保存内容/);
+  assert.match(await page.locator('#messages').textContent(), /classification needs its own source/);
 });
 
 test('adding ETF uses separate attributes and keeps identity stable when type changes', async (t) => {
@@ -404,7 +371,7 @@ test('adding ETF uses separate attributes and keeps identity stable when type ch
   await page.getByLabel('方向', { exact: true }).selectOption('long');
   await page.getByLabel('重置周期', { exact: true }).selectOption('daily');
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
-  const etf = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
+  const etf = await detailAfterJson(page);
   assert.equal(etf.symbol.canonical, 'TESTF');
   assert.equal(etf.security_type, 'etf');
   assert.equal(etf.etf.leverage_factor, 3);
@@ -412,12 +379,12 @@ test('adding ETF uses separate attributes and keeps identity stable when type ch
   assert.equal(etf.industry.industry_group_id, null);
   await page.locator('section[aria-label="编辑详情"]').getByLabel('证券类型', { exact: true }).selectOption('stock');
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
-  const stock = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
+  const stock = await detailAfterJson(page);
   assert.equal(stock.id, etf.id);
   assert.equal(stock.etf, null);
 });
 
-test('three-level selection preserves initial values, cascades, backfills and round-trips through export/import', async (t) => {
+test('three-level selection preserves initial values, cascades and backfills', async (t) => {
   const page = await pageForTest(t);
   const record = initial.instruments.find((item) => item.symbol.canonical === 'NVDA');
   const system = initial.vocabulary.industry_systems.find((item) => item.id === 'financedatabase');
@@ -459,26 +426,16 @@ test('three-level selection preserves initial values, cascades, backfills and ro
   await page.getByLabel('行业来源 ID', { exact: true }).fill(record.industry.source_ids.join(', '));
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
   assert.match(await page.locator('#messages').textContent(), /已通过校验/);
-  const edited = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
+  const edited = await detailAfterJson(page);
   assert.equal(edited.schema_version, '3.0.0');
   assert.equal(edited.industry.industry_id, software.id);
   assert.equal(edited.industry.industry_group_id, software.industry_group_id);
   assert.deepEqual(edited.classification, record.classification);
   assert.deepEqual(edited.sources, record.sources);
-  await page.reload();
-  await page.getByRole('button', { name: /^NVDA ·/ }).click();
-  assert.equal(await industryControl.inputValue(), record.industry.industry_id);
-  await page.locator('input[type=file]').setInputFiles({
-    name: `${edited.id}.json`, mimeType: 'application/json', buffer: Buffer.from(stableStringify(edited)),
-  });
-  await page.getByText('导入内容已通过全数据集校验。', { exact: false }).waitFor();
-  assert.equal(await groupControl.inputValue(), software.industry_group_id);
-  assert.equal(await industryControl.inputValue(), software.id);
-  const bundle = await downloadJson(page, page.getByRole('button', { name: '导出完整维护包（全部源记录及词表）', exact: true }));
-  assert.equal(bundle.schema_version, '3.0.0');
-  assert.deepEqual(bundle.vocabulary, initial.vocabulary);
-  assert.deepEqual(bundle.instruments.find((item) => item.id === edited.id), edited);
-  assert.deepEqual(validateDataset(bundle), []);
+  assert.deepEqual(validateDataset({
+    ...initial,
+    instruments: initial.instruments.map((item) => item.id === edited.id ? edited : item),
+  }), []);
 });
 
 test('empty records allow no classification, Yahoo needs no group and ETF clears all hierarchy fields', async (t) => {
@@ -491,7 +448,7 @@ test('empty records allow no classification, Yahoo needs no group and ETF clears
   await page.getByLabel('原始代码', { exact: true }).fill('HIERARCHY');
   await page.getByRole('button', { name: '由原始代码填入规范代码', exact: true }).click();
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
-  const blank = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
+  const blank = await detailAfterJson(page);
   assert.deepEqual(blank.industry, { system_id: null, sector_id: null, industry_group_id: null, industry_id: null, source_ids: [] });
   await systemControl.selectOption('yahoo');
   assert.equal(await groupControl.isDisabled(), true);
@@ -503,7 +460,7 @@ test('empty records allow no classification, Yahoo needs no group and ETF clears
     { id: 'human', kind: 'manual', label: 'Synthetic hierarchy fixture', url: null, accessed_at: null, fields: ['/industry'] },
   ]));
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
-  const yahoo = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
+  const yahoo = await detailAfterJson(page);
   assert.equal(yahoo.industry.system_id, 'yahoo');
   assert.equal(yahoo.industry.industry_group_id, null);
   assert.equal(yahoo.industry.industry_id, 'semiconductors');
@@ -513,7 +470,7 @@ test('empty records allow no classification, Yahoo needs no group and ETF clears
   assert.notEqual(await groupControl.inputValue(), '');
   await page.locator('section[aria-label="编辑详情"]').getByLabel('证券类型', { exact: true }).selectOption('etf');
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
-  const etf = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
+  const etf = await detailAfterJson(page);
   assert.deepEqual(etf.industry, blank.industry);
   assert.deepEqual(etf.classification, yahoo.classification);
   assert.equal(etf.id, yahoo.id);
@@ -542,10 +499,9 @@ test('industry vocabulary is browsable in three levels and group edits flag revi
   await page.getByText('高级：编辑完整词表 JSON（含行业体系 / 板块 / 行业组 / 行业）', { exact: true }).click();
   await page.getByLabel('完整 vocabulary.json', { exact: true }).fill(stableStringify(vocabulary));
   await page.getByRole('button', { name: '校验并保存完整词表草稿', exact: true }).click();
-  const bundle = await downloadJson(page, page.getByRole('button', { name: '导出完整维护包（全部源记录及词表）', exact: true }));
-  assert.equal(bundle.instruments.find((item) => item.symbol.canonical === 'NVDA').review.status, 'needs_review');
-  assert.deepEqual(bundle.vocabulary, vocabulary);
-  assert.deepEqual(validateDataset(bundle), []);
+  const savedVocabulary = await detailAfterJson(page);
+  assert.deepEqual(savedVocabulary, vocabulary);
+  assert.match(await page.getByText('data/instruments/ins-000001.json', { exact: true }).textContent(), /ins-000001/);
   await page.getByRole('button', { name: '＋ 新增词条', exact: true }).click();
   const newId = page.getByLabel('稳定 ID（新建后不可修改）', { exact: true });
   assert.equal(await newId.isEditable(), true);
@@ -558,7 +514,7 @@ test('industry vocabulary is browsable in three levels and group edits flag revi
   assert.match(await page.locator('#messages').textContent(), /稳定 ID 已存在/);
   await newId.fill('synthetic-industry-system');
   await page.getByRole('button', { name: '校验并保存词条草稿', exact: true }).click();
-  const saved = await downloadJson(page, page.getByRole('button', { name: '导出已保存词表 JSON', exact: true }));
+  const saved = await detailAfterJson(page);
   const added = saved.industry_systems.find((item) => item.name_zh === 'Synthetic industry system');
   assert.equal(added.id, 'synthetic-industry-system');
   assert.deepEqual(added.industry_groups, []);
@@ -567,42 +523,31 @@ test('industry vocabulary is browsable in three levels and group edits flag revi
   assert.equal(await page.getByLabel('稳定 ID（不可修改）', { exact: true }).isEditable(), false);
 });
 
-test('tag rename and referenced deletion stay safe and merged bundles round-trip through browser import', async (t) => {
+test('tag rename, referenced deletion and atomic merge stay safe in one PR draft', async (t) => {
   const page = await pageForTest(t);
   await page.getByRole('button', { name: '标签 / 行业词表', exact: true }).click();
   await page.locator('aside .record-button').filter({ hasText: 'semiconductor-ai' }).click();
   await page.getByLabel('中文显示名称', { exact: true }).fill('合成测试标签');
   await page.getByRole('button', { name: '校验并保存词条草稿', exact: true }).click();
-  const renamed = await downloadJson(page, page.getByRole('button', { name: '导出完整维护包（全部源记录及词表）', exact: true }));
-  assert.equal(renamed.vocabulary.tags.find((tag) => tag.id === 'semiconductor-ai').name_zh, '合成测试标签');
-  assert.deepEqual(renamed.instruments[0].classification, initial.instruments[0].classification);
-  assert.equal(renamed.instruments[0].review.status, 'needs_review');
+  const renamed = await detailAfterJson(page);
+  assert.equal(renamed.tags.find((tag) => tag.id === 'semiconductor-ai').name_zh, '合成测试标签');
   await page.getByRole('button', { name: '删除未被引用词条', exact: true }).click();
   assert.match(await page.locator('#messages').textContent(), /拒绝删除/);
   await page.getByLabel('将当前词条并入', { exact: true }).selectOption('ai-cloud');
   await page.getByRole('button', { name: '预览并合并到目标 ID', exact: true }).click();
   assert.match(await page.locator('#messages').textContent(), /已原子合并/);
-  const bundle = await downloadJson(page, page.getByRole('button', { name: '导出完整维护包（全部源记录及词表）', exact: true }));
-  assert.equal(bundle.instruments.length, 17);
-  assert.equal(bundle.vocabulary.tags.some((tag) => tag.id === 'semiconductor-ai'), false);
-  assert.deepEqual(bundle.instruments.find((record) => record.id === 'ins-000001').classification.tag_ids, ['ai', 'ai-cloud']);
-  assert.ok(bundle.vocabulary.tags.find((tag) => tag.id === 'ai-cloud').aliases.includes('合成测试标签'));
-  assert.equal(bundle.instruments.find((record) => record.id === 'ins-000002').review.status, 'needs_review');
-  assert.deepEqual(validateDataset(bundle), []);
-  const importedPage = await pageForTest(t);
-  await importedPage.locator('input[type=file]').setInputFiles({
-    name: 'tickerdata-maintenance-bundle.json', mimeType: 'application/json', buffer: Buffer.from(stableStringify(bundle)),
-  });
-  await importedPage.getByText('导入内容已通过全数据集校验。', { exact: false }).waitFor();
-  const imported = await downloadJson(importedPage, importedPage.getByRole('button', { name: '导出完整维护包（全部源记录及词表）', exact: true }));
-  assert.deepEqual(imported, bundle);
+  const merged = await detailAfterJson(page);
+  assert.equal(merged.tags.some((tag) => tag.id === 'semiconductor-ai'), false);
+  assert.ok(merged.tags.find((tag) => tag.id === 'ai-cloud').aliases.includes('合成测试标签'));
+  assert.equal(await page.getByText('data/instruments/ins-000001.json', { exact: true }).count(), 1);
+  assert.equal(await page.getByText('data/instruments/ins-000002.json', { exact: true }).count(), 1);
   await page.locator('aside .record-button').filter({ hasText: 'satellite-communication' }).click();
   await page.getByRole('button', { name: '删除未被引用词条', exact: true }).click();
-  const deleted = await downloadJson(page, page.getByRole('button', { name: '导出已保存词表 JSON', exact: true }));
+  const deleted = await detailAfterJson(page);
   assert.equal(deleted.tags.some((tag) => tag.id === 'satellite-communication'), false);
 });
 
-test('unsaved navigation cancellation retains edits and malformed import is visibly rejected', async (t) => {
+test('unsaved navigation cancellation retains edits and no import control exists', async (t) => {
   const page = await pageForTest(t);
   await page.getByRole('button', { name: /^NVDA ·/ }).click();
   await page.getByLabel('英文名称', { exact: true }).fill('Unsaved fixture');
@@ -610,12 +555,7 @@ test('unsaved navigation cancellation retains edits and malformed import is visi
   page.on('dialog', (dialog) => dialog.dismiss());
   await page.getByRole('button', { name: /^CRWV ·/ }).click();
   assert.equal(await page.getByLabel('英文名称', { exact: true }).inputValue(), 'Unsaved fixture');
-  page.removeAllListeners('dialog');
-  page.on('dialog', (dialog) => dialog.accept());
-  await page.locator('input[type=file]').setInputFiles({
-    name: 'invalid.json', mimeType: 'application/json', buffer: Buffer.from('{"schema_version":'),
-  });
-  await page.locator('#messages.error').waitFor();
-  assert.match(await page.locator('#messages').textContent(), /导入失败/);
+  assert.equal(await page.locator('input[type=file]').count(), 0);
+  assert.equal(await page.getByRole('button', { name: /导入/ }).count(), 0);
   assert.equal(await page.getByLabel('英文名称', { exact: true }).inputValue(), 'Unsaved fixture');
 });

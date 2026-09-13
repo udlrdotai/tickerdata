@@ -1,17 +1,69 @@
-import { readFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stableStringify } from '../src/model.js';
-import { validateDataset, validateLegacyDataset, validateLegacyShape, validateLegacyInstrument } from '../src/validation.js';
+import { validateDataset, validateLegacyDataset, validateLegacyShape, validateLegacyInstrument, validateReviewTransitions } from '../src/validation.js';
 import { isLegacyVersion, migrateDataset, migrateInstrument, migrateVocabulary } from '../src/migration.js';
 import { sha256 } from '../src/release.js';
 import { loadDataset } from './cli.js';
-import { prepareImport, applyPreparedImport, datasetHash } from './import.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 
+function datasetHash(dataset) {
+  return sha256(stableStringify(dataset));
+}
+
 function assertValid(errors) {
   if (errors.length) throw new Error(errors.join('\n'));
+}
+
+function prepareCandidate(current, candidate) {
+  assertValid(validateDataset(candidate));
+  const transitionErrors = validateReviewTransitions(current, candidate);
+  assertValid(transitionErrors);
+  const changed = [];
+  for (const record of candidate.instruments) {
+    const before = current.instruments.find((item) => item.id === record.id) ?? null;
+    if (stableStringify(before) !== stableStringify(record)) {
+      changed.push({ path: `data/instruments/${record.id}.json`, before, after: record });
+    }
+  }
+  if (stableStringify(current.vocabulary) !== stableStringify(candidate.vocabulary)) {
+    changed.push({ path: 'data/vocabulary.json', before: current.vocabulary, after: candidate.vocabulary });
+  }
+  return { candidate, changed, expected: datasetHash(current) };
+}
+
+async function applyPreparedMigration(directory, prepared, expected) {
+  if (!expected || expected !== prepared.expected) throw new Error('Source changed or expected hash missing. Preview again before --apply --expect HASH.');
+  if (!prepared.changed.length) return;
+  const cache = resolve(directory, '.cache');
+  await mkdir(cache, { recursive: true });
+  const transaction = await mkdtemp(resolve(cache, 'migration-'));
+  const staged = resolve(transaction, 'new-data');
+  const backup = resolve(transaction, 'previous-data');
+  const dataPath = resolve(directory, 'data');
+  await cp(dataPath, staged, { recursive: true });
+  for (const change of prepared.changed) {
+    await writeFile(resolve(staged, change.path.slice('data/'.length)), stableStringify(change.after));
+  }
+  if (datasetHash(await loadDataset(directory)) !== expected) {
+    await rm(transaction, { recursive: true });
+    throw new Error('Concurrent source edit detected. Nothing was migrated; preview again.');
+  }
+  await rename(dataPath, backup);
+  try {
+    await rename(staged, dataPath);
+  } catch (error) {
+    try {
+      await rename(backup, dataPath);
+    } catch (restoreError) {
+      throw new AggregateError([error, restoreError], `Migration interrupted. Original data retained at ${backup}; restore it before further work.`);
+    }
+    await rm(transaction, { recursive: true });
+    throw error;
+  }
+  await rm(transaction, { recursive: true });
 }
 
 function kindOf(payload) {
@@ -110,7 +162,7 @@ export function prepareMigration(current, payload) {
     : kind === 'vocabulary' ? migrateVocabulary(payload) : migrateInstrument(payload);
   const candidate = merge(baseline, converted, kind);
   invalidateReviews(baseline, candidate);
-  const prepared = prepareImport(current, candidate);
+  const prepared = prepareCandidate(current, candidate);
   const sourceHash = prepared.expected;
   // Bind approval to both source state and the exact legacy input, not just its filename.
   const expected = sha256(stableStringify({ sourceHash, payload }));
@@ -121,7 +173,7 @@ export async function applyMigration(directory, payload, expected) {
   const prepared = prepareMigration(await loadDataset(directory), payload);
   if (!expected || expected !== prepared.expected) throw new Error('Source or migration input changed, or expected hash missing. Preview again before --apply --expect HASH.');
   if (datasetHash(await loadDataset(directory)) !== prepared.sourceHash) throw new Error('Concurrent source edit detected. Preview again.');
-  await applyPreparedImport(directory, { ...prepared, expected: prepared.sourceHash }, prepared.sourceHash);
+  await applyPreparedMigration(directory, { ...prepared, expected: prepared.sourceHash }, prepared.sourceHash);
   return prepared;
 }
 
