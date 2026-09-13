@@ -6,7 +6,7 @@
 
 建议放在 `suggestions/*.json`，遵循 `schemas/suggestion.schema.json`。它包含稳定证券 ID、源记录 `base_record_sha256`、生成时间、生成器、`facts`、`inferences`、`missing`、逐字段 `proposed`、`new_tag_proposals`、`decisions`。
 
-新建议使用 `schema_version: "3.0.0"`。历史 1.0.0 / 2.0.0 建议分别按保留的 `schemas/v1/suggestion.schema.json`、`schemas/v2/suggestion.schema.json` 校验原始结构，不迁移版本或基准哈希；`suggestion:validate` 会拒绝将旧协议建议用于当前 3.0.0 数据。重新评估时生成新的建议，不覆盖旧历史。
+新建议使用 `schema_version: "4.0.0"`。历史 1.0.0 / 2.0.0 / 3.0.0 建议分别按保留的版本 schema 校验原始结构，不迁移版本或基准哈希；`suggestion:validate` 会拒绝将旧协议建议用于当前 4.0.0 数据。重新评估时生成新的建议，不覆盖旧历史。
 
 `base_record_sha256` 是 `src/release.js` 的 `recordHash(record)`，即按项目 `stableStringify` 排序、带末尾换行的完整源记录 JSON 的 SHA-256，而不是任意原文件空白格式的哈希。获取示例：
 

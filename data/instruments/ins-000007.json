@@ -1,6 +1,5 @@
 {
   "classification": {
-    "source_ids": [],
     "tag_ids": []
   },
   "etf": null,
@@ -9,7 +8,9 @@
     "industry_group_id": "semiconductors-semiconductor-equipment",
     "industry_id": "semiconductors-semiconductor-equipment",
     "sector_id": "information-technology",
-    "source_ids": ["financedatabase-equities"],
+    "source_ids": [
+      "financedatabase-equities"
+    ],
     "system_id": "financedatabase"
   },
   "issuer": {
@@ -28,12 +29,14 @@
     "reviewer": null,
     "status": "pending"
   },
-  "schema_version": "3.0.0",
+  "schema_version": "4.0.0",
   "security_type": "stock",
   "sources": [
     {
       "accessed_at": "2026-09-08T01:03:47Z",
-      "fields": ["/industry"],
+      "fields": [
+        "/industry"
+      ],
       "id": "financedatabase-equities",
       "kind": "provider",
       "label": "FinanceDatabase ARM (NMS/XNAS) 原值：Information Technology → Semiconductors & Semiconductor Equipment → Semiconductors & Semiconductor Equipment。仅记录上游分类，待人工审核。",

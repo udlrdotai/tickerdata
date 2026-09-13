@@ -15,8 +15,8 @@ function record(id = 'ins-test', symbol = 'TEST', mic = 'XNAS') {
   Object.assign(value.symbol, { original: symbol, canonical: symbol, mic });
   value.listing_status = 'active';
   value.name.en = 'Test security';
-  value.classification = { tag_ids: ['ai', 'semiconductor-ai'], source_ids: ['human'] };
-  value.sources = [{ id: 'human', kind: 'manual', label: 'Human judgment from reviewed reference materials.', url: null, accessed_at: null, fields: ['/classification'] }];
+  value.classification = { tag_ids: ['ai', 'semiconductor-ai'] };
+  value.sources = [{ id: 'human', kind: 'manual', label: 'Human judgment from reviewed reference materials.', url: null, accessed_at: null, fields: ['/name'] }];
   value.review = { status: 'reviewed', reviewed_at: '2026-09-01T00:00:00Z', reviewer: 'Example reviewer' };
   return value;
 }
@@ -118,7 +118,7 @@ test('optional multiple unique tags and stable vocabulary IDs, with no primary t
   expectInvalid((data) => { data.instruments[0].classification.tag_ids = ['unknown']; }, /unknown tag/);
   expectInvalid((data) => { data.vocabulary.themes = []; }, /additional properties/);
   expectInvalid((data) => { data.vocabulary.tags.push({ id: 'same-name', name_zh: 'AI云算力', description: '', aliases: [] }); }, /duplicate name\/alias/);
-  value.instruments[0].classification = { tag_ids: [], source_ids: [] };
+  value.instruments[0].classification = { tag_ids: [] };
   assert.deepEqual(validateDataset(value), []);
   assert.equal(JSON.parse(createRelease(value).files['instruments.json']).instruments.length, 1);
 });
@@ -132,9 +132,7 @@ test('industry taxonomy and field-level sources are independently validated', ()
   assert.match(validateDataset(value).join('\n'), /does not cover this field/);
   value.instruments[0].industry.industry_id = 'missing';
   assert.match(validateDataset(value).join('\n'), /unknown industry/);
-  expectInvalid((data) => { data.instruments[0].classification.source_ids = []; }, /classification needs/);
-  expectInvalid((data) => { data.instruments[0].classification.source_ids = ['missing']; }, /unknown source/);
-  expectInvalid((data) => { data.instruments[0].sources[0].fields = ['/industry']; }, /does not cover this field/);
+  expectInvalid((data) => { data.instruments[0].classification.source_ids = []; }, /additional properties/);
 });
 
 function hierarchyDataset() {
@@ -342,10 +340,10 @@ test('suggestions cannot mutate authority; existing IDs, stale bases and decisio
   assert.match(validateSuggestion(suggestion, value).join('\n'), /decision index/);
 });
 
-test('v3 suggestions accept only tag arrays and isolated new tag proposals', () => {
+test('v4 suggestions accept only tag arrays and isolated new tag proposals', () => {
   const value = dataset();
   const suggestion = {
-    schema_version: '3.0.0', id: 'suggestion-tags', instrument_id: 'ins-test',
+    schema_version: '4.0.0', id: 'suggestion-tags', instrument_id: 'ins-test',
     base_record_sha256: recordHash(value.instruments[0]), generated_at: '2026-09-01T00:00:00Z',
     generator: 'test', facts: [], inferences: [], missing: [], decisions: [],
     proposed: [{ field: '/classification/tag_ids', value: [], reason: 'Explicitly remove tags' }],

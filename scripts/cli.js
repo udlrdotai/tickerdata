@@ -33,7 +33,7 @@ function loadBaseline(ref) {
   if (!files.length) return { instruments: [] };
   const vocabulary = JSON.parse(git(['show', `${ref}:data/vocabulary.json`]));
   const dataset = { schema_version: vocabulary.schema_version, instruments: files.map((file) => JSON.parse(git(['show', `${ref}:${file}`]))), vocabulary };
-  assertValid(dataset.schema_version !== '3.0.0' ? validateLegacyDataset(dataset) : validateDataset(dataset));
+  assertValid(dataset.schema_version !== '4.0.0' ? validateLegacyDataset(dataset) : validateDataset(dataset));
   return dataset;
 }
 

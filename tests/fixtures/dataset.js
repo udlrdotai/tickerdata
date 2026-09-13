@@ -30,7 +30,7 @@ function evidence(id, fields) {
 
 function record(index, symbol, tags = []) {
   return {
-    schema_version: '3.0.0',
+    schema_version: '4.0.0',
     id: `ins-${String(index + 1).padStart(6, '0')}`,
     symbol: { original: symbol, canonical: symbol, mic: null, aliases: [], history: [] },
     name: { en: `Synthetic test-only ${symbol}`, zh: `仅供测试 ${symbol}` },
@@ -38,10 +38,10 @@ function record(index, symbol, tags = []) {
     security_type: 'stock',
     listing_status: 'unknown',
     industry: { system_id: null, sector_id: null, industry_group_id: null, industry_id: null, source_ids: [] },
-    classification: { tag_ids: [...tags], source_ids: tags.length ? ['manual-example'] : [] },
+    classification: { tag_ids: [...tags] },
     etf: null,
     related_instrument_ids: [],
-    sources: tags.length ? [evidence('manual-example', ['/classification'])] : [],
+    sources: [],
     review: { status: 'pending', reviewer: null, reviewed_at: null },
     notes: 'Synthetic test-only record; not security research or publication data.',
   };
@@ -72,7 +72,7 @@ export function createDatasetFixture() {
   instruments.push(...funds.map(([symbol, tags], index) => {
     const item = record(stocks.length + index, symbol, tags);
     item.security_type = 'etf';
-    item.sources[0].fields.push('/etf');
+    item.sources.push(evidence('manual-example', ['/etf']));
     item.etf = {
       asset_class: null,
       description: null,
@@ -86,5 +86,5 @@ export function createDatasetFixture() {
     };
     return item;
   }));
-  return { schema_version: '3.0.0', vocabulary, instruments };
+  return { schema_version: '4.0.0', vocabulary, instruments };
 }

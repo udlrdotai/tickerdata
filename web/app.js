@@ -547,8 +547,7 @@ function renderRecord(record) {
   } else form.append(node('p', 'ETF 不使用公司板块 / 行业；请在 ETF 属性中描述敞口，并按需独立选择标签。', 'notice'));
 
   const classification = section(form, '3 · 标签（可选）');
-  bind(classification, '标签（多选）', 'classification.tag_ids', '可不选标签，已审核记录也可留空。可直接勾选多个标签；选择标签时须提供 /classification 来源。', 'multi', state.dataset.vocabulary.tags);
-  const classificationSources = bind(classification, '分类来源 ID', 'classification.source_ids', sourceHint, 'ids');
+  bind(classification, '标签（多选）', 'classification.tag_ids', '可不选标签，已审核记录也可留空。可直接勾选多个标签。', 'multi', state.dataset.vocabulary.tags);
 
   if (working.security_type === 'etf') {
     const etf = section(form, '4 · ETF 属性');
@@ -571,21 +570,9 @@ function renderRecord(record) {
   aliases.parentElement.classList.add('wide');
   const history = bind(evidence, '历史代码（JSON 数组）', 'symbol.history', '每项含 symbol、mic、valid_from、valid_to；日期 YYYY-MM-DD，未知值为 null。记录改名 / 换代码时保留内部 ID。', 'json');
   history.parentElement.classList.add('wide');
-  const sources = bind(evidence, '来源证据（JSON 数组）', 'sources', '每项字段：id、kind（manual/issuer/exchange/provider/other）、label（依据）、url（HTTPS 或 null）、accessed_at（UTC ISO 时间或 null）、fields。允许路径：/industry /classification /etf /name /symbol /issuer /listing_status /notes。', 'json');
+  const sources = bind(evidence, '来源证据（JSON 数组）', 'sources', '每项字段：id、kind（manual/issuer/exchange/provider/other）、label（依据）、url（HTTPS 或 null）、accessed_at（UTC ISO 时间或 null）、fields。允许路径：/industry /etf /name /symbol /issuer /listing_status /notes。', 'json');
   sources.rows = 12;
   sources.parentElement.classList.add('wide');
-  evidence.append(button('＋ 添加人工分类依据模板', () => {
-    let entries;
-    try { entries = JSON.parse(sources.value); } catch { throw new Error('请先修复来源证据 JSON。'); }
-    if (!Array.isArray(entries)) throw new Error('来源证据必须是 JSON 数组。');
-    const id = `src-${crypto.randomUUID()}`;
-    entries.push({ id, kind: 'manual', label: '', url: null, accessed_at: new Date().toISOString(), fields: ['/classification'] });
-    sources.value = stableStringify(entries);
-    classificationSources.value = [...ids(classificationSources.value), id].join(', ');
-    markDirty();
-    report('已添加人工来源模板并关联分类。必须在 label 中填写真实的人工判断依据；无需伪造 URL。');
-    sources.focus();
-  }));
 
   const notes = section(form, '6 · 备注与审核');
   bind(notes, '维护备注', 'notes', null, 'textarea');
@@ -607,7 +594,7 @@ function renderRecord(record) {
     markDirty();
   });
   const explicitLabel = node('label', null, 'checkbox');
-  explicitLabel.append(explicit, node('span', '我已人工核验当前内容，明确标为已审核 / 重新审核。保存时将自动更新审核时间；需英文名称、MIC 及审核人，标准行业与标签均可留空，填写时须有对应来源依据。'));
+  explicitLabel.append(explicit, node('span', '我已人工核验当前内容，明确标为已审核 / 重新审核。保存时将自动更新审核时间；需英文名称、MIC 及审核人，标准行业与标签均可留空；填写行业时须有对应来源依据。'));
   form.append(explicitLabel);
   readRecord = () => {
     const next = clone(working);

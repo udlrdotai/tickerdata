@@ -24,18 +24,9 @@ test('Python consumes actual Node publisher bytes for stocks, ETFs, aliases and 
       record.name.en = 'Synthetic interop fixture';
       record.symbol.mic = 'XNAS';
       record.review = { status: 'reviewed', reviewer: 'Test fixture only', reviewed_at: '2026-09-01T00:00:00Z' };
-      if (record.classification.tag_ids.length && !record.classification.source_ids.length) {
-        record.classification.source_ids = ['synthetic'];
-        record.sources.push({ id: 'synthetic', kind: 'manual', label: 'Synthetic test rationale only', url: null, accessed_at: null, fields: ['/classification'] });
-      }
     }
     fixture.instruments[0].classification.tag_ids = ['ai-cloud', 'semiconductor-ai'];
-    fixture.instruments[0].classification.source_ids = ['synthetic-tags'];
-    fixture.instruments[0].sources.push({
-      id: 'synthetic-tags', kind: 'manual', label: 'Synthetic overlapping tags only',
-      url: null, accessed_at: null, fields: ['/classification'],
-    });
-    fixture.instruments[1].classification = { tag_ids: [], source_ids: [] };
+    fixture.instruments[1].classification = { tag_ids: [] };
     const release = createRelease(fixture);
     for (const [name, bytes] of Object.entries(release.files)) await writeFile(resolve(folder, name), bytes);
     const output = execFileSync('python3', ['-c', [
@@ -84,9 +75,9 @@ test('JS and Python agree on strict three-level hierarchy and protocol edge case
   Object.assign(item.symbol, { original: 'TEST', canonical: 'TEST', mic: 'XNAS' });
   item.name.en = 'Synthetic protocol fixture';
   item.review = { status: 'reviewed', reviewer: 'Test only', reviewed_at: '2026-09-01T00:00:00Z' };
-  item.classification = { tag_ids: ['cloud', 'ai'], source_ids: ['human'] };
+  item.classification = { tag_ids: ['cloud', 'ai'] };
   item.industry = { system_id: 'financedatabase', sector_id: 'first-sector', industry_group_id: 'first-group', industry_id: 'first-industry', source_ids: ['human'] };
-  item.sources = [{ id: 'human', kind: 'manual', label: 'Synthetic only', fields: ['/classification', '/industry'], url: null, accessed_at: null }];
+  item.sources = [{ id: 'human', kind: 'manual', label: 'Synthetic only', fields: ['/industry'], url: null, accessed_at: null }];
   const original = {
     schema_version: SCHEMA_VERSION, instruments: [item],
     vocabulary: {
@@ -104,14 +95,11 @@ test('JS and Python agree on strict three-level hierarchy and protocol edge case
   };
   const mutations = [
     ['complete hierarchy', true, () => {}],
-    ['reviewed without tags', true, (data) => { data.instruments[0].classification = { tag_ids: [], source_ids: [] }; }],
-    ['empty tags with valid source', true, (data) => { data.instruments[0].classification.tag_ids = []; }],
+    ['reviewed without tags', true, (data) => { data.instruments[0].classification = { tag_ids: [] }; }],
+    ['empty tags', true, (data) => { data.instruments[0].classification.tag_ids = []; }],
     ['unknown tag', false, (data) => { data.instruments[0].classification.tag_ids = ['missing']; }],
     ['duplicate tag', false, (data) => { data.instruments[0].classification.tag_ids = ['ai', 'ai']; }],
-    ['tags without source', false, (data) => { data.instruments[0].classification.source_ids = []; }],
-    ['unknown classification source', false, (data) => { data.instruments[0].classification.source_ids = ['missing']; }],
-    ['missing classification coverage', false, (data) => { data.instruments[0].sources[0].fields = ['/industry']; }],
-    ['empty tags still validate source', false, (data) => { data.instruments[0].classification = { tag_ids: [], source_ids: ['missing'] }; }],
+    ['classification source forbidden', false, (data) => { data.instruments[0].classification.source_ids = []; }],
     ['legacy primary theme forbidden', false, (data) => { data.instruments[0].classification.primary_theme_id = 'cloud'; }],
     ['legacy themes vocabulary forbidden', false, (data) => { data.vocabulary.themes = []; }],
     ['duplicate vocabulary tag', false, (data) => { data.vocabulary.tags.push(structuredClone(data.vocabulary.tags[0])); }],

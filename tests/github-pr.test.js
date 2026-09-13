@@ -30,7 +30,7 @@ test('PR submission sends only draft data to the same-origin backend', async () 
     calls.push([url, options]);
     return jsonResponse(201, { url: 'https://github.com/owner/repo/pull/123', number: 123 });
   };
-  const files = [{ path: 'data/vocabulary.json', content: { schema_version: '3.0.0' } }];
+  const files = [{ path: 'data/vocabulary.json', content: { schema_version: '4.0.0' } }];
   const result = await createPullRequestFromDraft({
     files,
     branch: 'maintenance/ok',

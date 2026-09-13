@@ -39,11 +39,10 @@ test('worker rejects arbitrary paths, mismatched IDs, and invalid datasets', () 
 test('worker compares remote JSON by content rather than formatting', () => {
   const expected = {
     classification: {
-      source_ids: ['manual-example'],
       tag_ids: ['us-long-treasury'],
     },
   };
-  const differentlyFormatted = '{\n  "classification": {\n    "source_ids": [\n      "manual-example"\n    ],\n    "tag_ids": ["us-long-treasury"]\n  }\n}\n';
+  const differentlyFormatted = '{\n  "classification": {\n    "tag_ids": ["us-long-treasury"]\n  }\n}\n';
 
   assert.equal(jsonContentMatches(differentlyFormatted, expected), true);
   assert.equal(

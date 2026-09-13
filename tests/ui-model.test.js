@@ -12,8 +12,8 @@ function fixture() {
     history: [{ symbol: 'OLD', mic: 'XNYS', valid_from: null, valid_to: null }],
   };
   record.name = { en: 'Example Company', zh: '示例公司' };
-  record.classification = { tag_ids: ['tag-old', 'tag-target'], source_ids: ['manual'] };
-  record.sources = [{ id: 'manual', kind: 'manual', label: 'Synthetic classification rationale', url: null, accessed_at: null, fields: ['/classification'] }];
+  record.classification = { tag_ids: ['tag-old', 'tag-target'] };
+  record.sources = [];
   record.review = { status: 'reviewed', reviewed_at: '2026-01-01T00:00:00.000Z', reviewer: 'Maintainer' };
   const label = (id, name_zh) => ({ id, name_zh, aliases: [], description: '' });
   return {
@@ -49,8 +49,7 @@ function hierarchyFixture() {
   }];
   const record = dataset.instruments[0];
   record.industry = { system_id: 'financedatabase', sector_id: 'technology', industry_group_id: 'software-services', industry_id: 'software', source_ids: ['manual'] };
-  record.classification.source_ids = ['manual'];
-  record.sources = [{ id: 'manual', kind: 'manual', label: 'Fixture rationale', url: null, accessed_at: null, fields: ['/classification', '/industry'] }];
+  record.sources = [{ id: 'manual', kind: 'manual', label: 'Fixture rationale', url: null, accessed_at: null, fields: ['/industry'] }];
   return dataset;
 }
 
@@ -175,7 +174,7 @@ test('explicit review accepts zero tags and preserves independent fields and evi
   const current = hierarchyFixture();
   const before = clone(current.instruments[0]);
   before.review.status = 'pending';
-  before.classification = { tag_ids: [], source_ids: [] };
+  before.classification = { tag_ids: [] };
   const reviewed = prepareRecord(before, before, true);
   assert.equal(reviewed.review.status, 'reviewed');
   assert.ok(reviewed.review.reviewed_at);
@@ -183,7 +182,7 @@ test('explicit review accepts zero tags and preserves independent fields and evi
   assert.deepEqual(validateDataset({ ...current, instruments: [reviewed] }), []);
   const tagged = clone(reviewed);
   tagged.classification.tag_ids = ['tag-old'];
-  assert.match(validateDataset({ ...current, instruments: [tagged] }).join('\n'), /classification needs its own source/);
+  assert.deepEqual(validateDataset({ ...current, instruments: [tagged] }), []);
 });
 
 test('record review downgrade cascades through related reviewed securities', () => {
@@ -262,11 +261,6 @@ test('tag merging deduplicates targets and rejects invalid IDs', () => {
 test('atomic merge cascades related review dependencies and passes actual dataset validation', () => {
   const initial = fixture();
   const record = initial.instruments[0];
-  record.classification.source_ids = ['src-manual'];
-  record.sources = [{
-    id: 'src-manual', kind: 'manual', label: '人工分类依据', url: null,
-    accessed_at: null, fields: ['/classification'],
-  }];
   initial.vocabulary.tags.push({ id: 'tag-other', name_zh: '其他标签', description: '', aliases: [] });
   const dependent = clone(record);
   dependent.id = 'ins-dependent';
@@ -294,11 +288,6 @@ test('atomic merge cascades related review dependencies and passes actual datase
 test('a reviewed edit is valid only with downgrade or a newer explicit review', () => {
   const initial = fixture();
   const record = initial.instruments[0];
-  record.classification.source_ids = ['src-manual'];
-  record.sources = [{
-    id: 'src-manual', kind: 'manual', label: '人工分类依据', url: null,
-    accessed_at: null, fields: ['/classification'],
-  }];
   const next = clone(initial);
   next.instruments[0].notes = '更新信息';
   assert.notEqual(validateReviewTransitions(initial, next).length, 0);

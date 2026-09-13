@@ -1,29 +1,34 @@
 import { SCHEMA_VERSION, stableStringify } from './model.js';
 
-export const isLegacyVersion = (version) => ['1.0.0', '2.0.0'].includes(version);
+export const isLegacyVersion = (version) => ['1.0.0', '2.0.0', '3.0.0'].includes(version);
 
 // Callers must validate the original protocol and references before conversion.
 export function migrateInstrument(record) {
   const result = structuredClone(record);
-  if (!isLegacyVersion(result.schema_version)) throw new Error('Expected original v1 or v2 instrument');
+  if (!isLegacyVersion(result.schema_version)) throw new Error('Expected original v1, v2, or v3 instrument');
   if (result.schema_version === '1.0.0') result.industry.industry_group_id = null;
   const { primary_theme_id, ...classification } = result.classification;
-  if (primary_theme_id !== null) classification.tag_ids = [...new Set([...classification.tag_ids, primary_theme_id])];
+  delete classification.source_ids;
+  if (primary_theme_id != null) classification.tag_ids = [...new Set([...classification.tag_ids, primary_theme_id])];
   result.classification = classification;
+  result.sources = result.sources.flatMap((source) => {
+    const fields = source.fields.filter((field) => field !== '/classification');
+    return fields.length ? [{ ...source, fields }] : [];
+  });
   result.schema_version = SCHEMA_VERSION;
   return result;
 }
 
 export function migrateVocabulary(vocabulary) {
   const result = structuredClone(vocabulary);
-  if (!isLegacyVersion(result.schema_version)) throw new Error('Expected original v1 or v2 vocabulary');
+  if (!isLegacyVersion(result.schema_version)) throw new Error('Expected original v1, v2, or v3 vocabulary');
   const labels = new Map(result.tags.map((tag) => [tag.id, tag]));
   const names = new Map();
   const normalize = (name) => name.trim().toLocaleLowerCase('en-US');
   for (const tag of result.tags) {
     for (const name of [tag.name_zh, ...tag.aliases]) names.set(normalize(name), tag.id);
   }
-  for (const theme of result.themes) {
+  for (const theme of result.themes ?? []) {
     const existing = labels.get(theme.id);
     if (existing) {
       if (stableStringify(existing) === stableStringify(theme)) continue;

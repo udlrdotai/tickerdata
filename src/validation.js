@@ -3,7 +3,7 @@ import { normalizeSymbol, SCHEMA_VERSION, stableStringify } from './model.js';
 import { isLegacyVersion, migrateDataset } from './migration.js';
 
 function versionValidators(version) {
-  const suffix = version === '1.0.0' ? 'V1' : version === '2.0.0' ? 'V2' : '';
+  const suffix = version === '1.0.0' ? 'V1' : version === '2.0.0' ? 'V2' : version === '3.0.0' ? 'V3' : '';
   return Object.fromEntries(['instrument', 'vocabulary', 'suggestion'].map((kind) => [kind, validators[`${kind}${suffix}`]]));
 }
 
@@ -62,13 +62,13 @@ export function validateDataset(dataset) {
 }
 
 export function validateLegacyDataset(dataset) {
-  if (!isLegacyVersion(dataset?.schema_version)) return ['dataset: expected original schema_version 1.0.0 or 2.0.0'];
+  if (!isLegacyVersion(dataset?.schema_version)) return ['dataset: expected original schema_version 1.0.0, 2.0.0, or 3.0.0'];
   return validateVersionedDataset(dataset, dataset.schema_version);
 }
 
 export function validateLegacyShape(payload, kind) {
   if (!['instrument', 'vocabulary'].includes(kind)) return ['Unsupported legacy payload kind'];
-  if (!isLegacyVersion(payload?.schema_version)) return [`${kind}: expected original schema_version 1.0.0 or 2.0.0`];
+  if (!isLegacyVersion(payload?.schema_version)) return [`${kind}: expected original schema_version 1.0.0, 2.0.0, or 3.0.0`];
   return schemaErrors(versionValidators(payload.schema_version)[kind], payload, kind);
 }
 
@@ -91,7 +91,7 @@ function validateVersionedDataset(dataset, version, selectedIds = null) {
   if (errors.length) return errors;
 
   const vocabulary = dataset.vocabulary;
-  const themes = isLegacyVersion(version) ? uniqueLabels(vocabulary.themes, 'themes', errors) : new Set();
+  const themes = ['1.0.0', '2.0.0'].includes(version) ? uniqueLabels(vocabulary.themes, 'themes', errors) : new Set();
   const tags = uniqueLabels(vocabulary.tags, 'tags', errors);
   uniqueLabels(vocabulary.industry_systems, 'industry_systems', errors);
   const systems = new Map();
@@ -133,7 +133,7 @@ function validateVersionedDataset(dataset, version, selectedIds = null) {
       sourceIds.set(source.id, source);
       if (!source.label.trim()) fail(`source ${source.id} needs a rationale or label`);
     }
-    for (const field of ['industry', 'classification', 'etf']) {
+    for (const field of version === '4.0.0' ? ['industry', 'etf'] : ['industry', 'classification', 'etf']) {
       for (const id of record[field]?.source_ids ?? []) {
         const source = sourceIds.get(id);
         if (!source) fail(`${field}: unknown source ${id}`);
@@ -158,12 +158,14 @@ function validateVersionedDataset(dataset, version, selectedIds = null) {
     const hierarchy = [industry.system_id, industry.sector_id, industry.industry_id, ...(version === '1.0.0' ? [] : [industry.industry_group_id])];
     if (hierarchy.some((value) => value !== null) && !industry.source_ids.length) fail('standard industry needs its own source');
 
-    if (isLegacyVersion(version) && record.classification.primary_theme_id !== null && !themes.has(record.classification.primary_theme_id)) fail('unknown primary theme');
+    if (['1.0.0', '2.0.0'].includes(version) && record.classification.primary_theme_id !== null && !themes.has(record.classification.primary_theme_id)) fail('unknown primary theme');
     for (const id of record.classification.tag_ids) {
       if (!tags.has(id)) fail(`unknown tag ${id}`);
     }
-    if (((isLegacyVersion(version) && record.classification.primary_theme_id !== null) || record.classification.tag_ids.length) && !record.classification.source_ids.length) fail('classification needs its own source');
-
+    if (version !== '4.0.0' &&
+        ((['1.0.0', '2.0.0'].includes(version) && record.classification.primary_theme_id !== null) ||
+         record.classification.tag_ids.length) &&
+        !record.classification.source_ids.length) fail('classification needs its own source');
     if (record.security_type === 'etf') {
       if (record.etf === null) fail('ETF must have an ETF object (unknown attributes may be null)');
       if (hierarchy.some((value) => value !== null) || industry.source_ids.length) fail('ETF cannot use company sector/industry');
@@ -178,7 +180,7 @@ function validateVersionedDataset(dataset, version, selectedIds = null) {
     if (record.review.status === 'reviewed') {
       if (!record.review.reviewed_at || !record.review.reviewer?.trim()) fail('reviewed record needs UTC review time and reviewer');
       if (!record.name.en?.trim() || !record.symbol.mic) fail('reviewed record needs English name and listing MIC');
-      if (isLegacyVersion(version) && (!record.classification.primary_theme_id || !record.classification.source_ids.length)) fail('reviewed record needs a primary theme and rationale source');
+      if (['1.0.0', '2.0.0'].includes(version) && !record.classification.primary_theme_id) fail('reviewed record needs a primary theme');
     }
 
     const ownAliases = new Set();
@@ -275,7 +277,7 @@ export function validateSuggestion(suggestion, dataset, recordHash) {
     if (decision.proposal_index >= suggestion.proposed.length || decisions.has(decision.proposal_index)) errors.push('suggestion: invalid or duplicate decision index');
     decisions.add(decision.proposal_index);
   }
-  const legacy = isLegacyVersion(suggestion.schema_version);
+  const legacy = ['1.0.0', '2.0.0'].includes(suggestion.schema_version);
   const proposals = legacy ? suggestion.new_theme_proposals : suggestion.new_tag_proposals;
   const labels = legacy ? dataset.vocabulary.themes : dataset.vocabulary.tags;
   const kind = legacy ? 'theme' : 'tag';
