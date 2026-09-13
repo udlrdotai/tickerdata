@@ -97,11 +97,15 @@ function options(select, items, value = '', placeholder = '未填写') {
   if (!select.multiple) select.value = value ?? '';
 }
 
-function field(parent, title, control, hint) {
+function field(parent, title, control, hint, required = false) {
   const wrapper = node('div', null, 'field');
   const label = node('label', title);
   control.id ||= `field-${++sequence}`;
   label.htmlFor = control.id;
+  if (required) {
+    control.required = true;
+    label.classList.add('required');
+  }
   wrapper.append(label, control);
   if (hint) {
     const help = node('span', hint, 'hint');
@@ -113,20 +117,52 @@ function field(parent, title, control, hint) {
   return control;
 }
 
-function input(parent, title, value, hint, multiline = false) {
+function setRequired(control, required) {
+  control.required = required;
+  control.parentElement.querySelector(`label[for="${control.id}"]`)?.classList.toggle('required', required);
+}
+
+function input(parent, title, value, hint, multiline = false, required = false) {
   const control = node(multiline ? 'textarea' : 'input');
   if (!multiline) control.type = 'text';
   control.value = value ?? '';
   control.addEventListener('input', markDirty);
-  return field(parent, title, control, hint);
+  return field(parent, title, control, hint, required);
 }
 
-function selectField(parent, title, items, value, hint, multiple = false) {
+function selectField(parent, title, items, value, hint, required = false) {
   const control = node('select');
-  control.multiple = multiple;
   options(control, items, value);
   control.addEventListener('change', markDirty);
-  return field(parent, title, control, hint);
+  return field(parent, title, control, hint, required);
+}
+
+function multiField(parent, title, items, value, hint) {
+  const wrapper = node('div', null, 'field');
+  const titleElement = node('span', title, 'field-label');
+  titleElement.id = `field-${++sequence}-label`;
+  const group = node('div', null, 'multi-options');
+  group.setAttribute('role', 'group');
+  group.setAttribute('aria-labelledby', titleElement.id);
+  for (const item of items) {
+    const choice = node('label', null, 'multi-option');
+    const checkbox = node('input');
+    checkbox.type = 'checkbox';
+    checkbox.value = item.id;
+    checkbox.checked = value.includes(item.id);
+    checkbox.addEventListener('change', markDirty);
+    choice.append(checkbox, node('span', item.name_zh ?? item.label ?? item.id));
+    group.append(choice);
+  }
+  wrapper.append(titleElement, group);
+  if (hint) {
+    const help = node('span', hint, 'hint');
+    help.id = `${titleElement.id}-hint`;
+    group.setAttribute('aria-describedby', help.id);
+    wrapper.append(help);
+  }
+  parent.append(wrapper);
+  return group;
 }
 
 function section(parent, title) {
@@ -504,13 +540,16 @@ function renderRecord(record) {
   form.addEventListener('submit', (event) => event.preventDefault());
   detail.append(form);
   const readers = [];
+  const requiredFields = new Set(['symbol.original', 'symbol.canonical', 'security_type', 'listing_status', 'review.status']);
   function bind(parent, label, path, hint, kind = 'text', choices) {
     const parts = path.split('.');
     const value = parts.reduce((item, key) => item?.[key], working);
     let control;
-    if (kind === 'select' || kind === 'multi') control = selectField(parent, label, choices, value, hint, kind === 'multi');
+    const required = requiredFields.has(path);
+    if (kind === 'select') control = selectField(parent, label, choices, value, hint, required);
+    else if (kind === 'multi') control = multiField(parent, label, choices, value, hint);
     else {
-      control = input(parent, label, kind === 'json' ? stableStringify(value) : kind === 'ids' ? value.join(', ') : value, hint, kind === 'json' || kind === 'textarea');
+      control = input(parent, label, kind === 'json' ? stableStringify(value) : kind === 'ids' ? value.join(', ') : value, hint, kind === 'json' || kind === 'textarea', required);
       if (kind === 'json') { control.classList.add('code'); control.rows = 6; control.spellcheck = false; }
       if (kind === 'number') { control.type = 'number'; control.step = 'any'; control.min = '0'; }
     }
@@ -518,7 +557,7 @@ function renderRecord(record) {
       let parsed;
       if (kind === 'json') {
         try { parsed = JSON.parse(control.value); } catch { throw new Error(`${label}：不是合法 JSON，请检查引号、逗号和括号。`); }
-      } else if (kind === 'multi') parsed = [...control.selectedOptions].map((option) => option.value);
+      } else if (kind === 'multi') parsed = [...control.querySelectorAll('input:checked')].map((option) => option.value);
       else if (kind === 'ids') parsed = ids(control.value);
       else if (kind === 'number') parsed = control.value === '' ? null : Number(control.value);
       else parsed = ['notes', 'symbol.original', 'symbol.canonical'].includes(path) ? control.value : nullable(control.value);
@@ -531,10 +570,26 @@ function renderRecord(record) {
   const original = bind(identity, '原始代码', 'symbol.original', '保留原始写法和标点，不作为内部 ID。');
   const canonical = bind(identity, '规范代码', 'symbol.canonical', '仅去除首尾空格并转为大写；不会猜测交易所或替换标点。');
   recordActions.append(button('由原始代码填入规范代码', () => { canonical.value = normalizeSymbol(original.value); markDirty(); }));
-  bind(identity, 'MIC 交易场所代码', 'symbol.mic', '未知留空；已知填写 4 位大写字母 / 数字，例如 XNAS。');
+  const mic = bind(identity, 'MIC 交易场所代码', 'symbol.mic', '未知留空；可从常见美股交易场所中选择，也可填写其他 4 位 MIC。');
+  const micList = node('datalist');
+  micList.id = `mic-options-${sequence}`;
+  for (const [id, label] of [
+    ['XNAS', 'Nasdaq'],
+    ['XNYS', 'New York Stock Exchange'],
+    ['ARCX', 'NYSE Arca'],
+    ['BATS', 'Cboe BZX'],
+    ['XASE', 'NYSE American'],
+  ]) {
+    const option = node('option');
+    option.value = id;
+    option.label = label;
+    micList.append(option);
+  }
+  mic.setAttribute('list', micList.id);
+  mic.parentElement.append(micList);
   const type = bind(identity, '证券类型', 'security_type', null, 'select', enumItems(Object.keys(typeNames), typeNames));
   bind(identity, '上市状态', 'listing_status', null, 'select', enumItems(['active', 'inactive', 'unknown'], { active: '正常上市', inactive: '已停止上市', unknown: '未知' }));
-  bind(identity, '英文名称', 'name.en');
+  const englishName = bind(identity, '英文名称', 'name.en');
   bind(identity, '中文名称', 'name.zh');
   bind(identity, '发行人 ID', 'issuer.id', '未知留空；不自动匹配或猜测发行人。');
   bind(identity, '发行人国家 / 地区代码', 'issuer.country', '两位大写代码，例如 US；未知留空。');
@@ -575,7 +630,7 @@ function renderRecord(record) {
   } else form.append(node('p', 'ETF 不使用公司板块 / 行业；请在 ETF 属性中描述敞口，并按需独立选择标签。', 'notice'));
 
   const classification = section(form, '3 · 标签（可选）');
-  bind(classification, '标签（多选）', 'classification.tag_ids', '可不选标签，已审核记录也可留空。选择标签时须提供 /classification 来源。按住 Ctrl / Command 可多选、取消选择；触屏使用系统多选控件。', 'multi', state.dataset.vocabulary.tags);
+  bind(classification, '标签（多选）', 'classification.tag_ids', '可不选标签，已审核记录也可留空。可直接勾选多个标签；选择标签时须提供 /classification 来源。', 'multi', state.dataset.vocabulary.tags);
   const classificationSources = bind(classification, '分类来源 ID', 'classification.source_ids', sourceHint, 'ids');
 
   if (working.security_type === 'etf') {
@@ -618,16 +673,24 @@ function renderRecord(record) {
   const notes = section(form, '6 · 备注与审核');
   bind(notes, '维护备注', 'notes', null, 'textarea');
   const review = bind(notes, '审核状态', 'review.status', '对已审核记录的修改默认转为需复核；重新审核请勾选下方确认。', 'select', enumItems(Object.keys(reviewNames), reviewNames));
-  bind(notes, '审核人', 'review.reviewer', '填写可公开的审核署名，不要填写敏感个人信息。');
-  bind(notes, '审核时间（UTC ISO）', 'review.reviewed_at', '例如 2026-01-01T00:00:00.000Z；明确复核时由本页写入当前 UTC 时间。');
+  const reviewer = bind(notes, '审核人', 'review.reviewer', '填写可公开的审核署名，不要填写敏感个人信息。');
+  const reviewedAt = bind(notes, '审核时间（UTC ISO）', 'review.reviewed_at', '无需手动填写；明确审核并保存时，系统自动写入当前 UTC 时间。');
+  reviewedAt.readOnly = true;
+  const updateReviewRequirements = () => {
+    const required = review.value === 'reviewed';
+    for (const control of [englishName, mic, reviewer]) setRequired(control, required);
+  };
+  review.addEventListener('change', updateReviewRequirements);
+  updateReviewRequirements();
   const explicit = node('input');
   explicit.type = 'checkbox';
   explicit.addEventListener('change', () => {
     if (explicit.checked) review.value = 'reviewed';
+    updateReviewRequirements();
     markDirty();
   });
   const explicitLabel = node('label', null, 'checkbox');
-  explicitLabel.append(explicit, node('span', '我已人工核验当前内容，明确标为已审核 / 重新审核，并更新审核时间。需英文名称、MIC 及审核人；标准行业与标签均可留空，填写时须有对应来源依据。'));
+  explicitLabel.append(explicit, node('span', '我已人工核验当前内容，明确标为已审核 / 重新审核。保存时将自动更新审核时间；需英文名称、MIC 及审核人，标准行业与标签均可留空，填写时须有对应来源依据。'));
   form.append(explicitLabel);
   readRecord = () => {
     const next = clone(working);

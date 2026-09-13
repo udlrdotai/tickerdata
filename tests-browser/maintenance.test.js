@@ -114,12 +114,19 @@ test('only tags and industry remain in the UI and multi-select tags save, export
   assert.equal(await page.locator('aside .record-button').count(), 2);
   await page.getByLabel('标签', { exact: true }).selectOption('');
   await page.getByRole('button', { name: /^NVDA ·/ }).click();
+  assert.deepEqual(await page.locator('form [required]').evaluateAll((controls) =>
+    controls.map((control) => control.labels[0].textContent.trim())), ['原始代码', '规范代码', '证券类型', '上市状态', '审核状态']);
+  assert.equal(await page.locator('form label.required').count(), 5);
+  assert.deepEqual(await page.getByLabel('MIC 交易场所代码', { exact: true }).evaluate((input) =>
+    [...document.getElementById(input.getAttribute('list')).options].map((option) => option.value)),
+  ['XNAS', 'XNYS', 'ARCX', 'BATS', 'XASE']);
   assert.equal(await page.getByLabel('主主题（单选）', { exact: true }).count(), 0);
   assert.equal(await page.getByRole('button', { name: '主题 / 标签 / 行业词表', exact: true }).count(), 0);
   assert.doesNotMatch((await page.locator('form legend').allTextContents()).join('\n'), /主主题|交易主题|与主题独立/);
   assert.match(await page.getByLabel('来源证据（JSON 数组）', { exact: true }).inputValue(), /historical 主主题 evidence/);
   const selection = ['ai', 'semiconductor-ai', 'digital-assets'];
-  await page.getByLabel('标签（多选）', { exact: true }).selectOption(selection);
+  const tags = page.getByRole('group', { name: '标签（多选）', exact: true });
+  for (const value of selection) await tags.locator(`input[value="${value}"]`).check();
   assert.match(await page.locator('#form-state').textContent(), /未保存修改/);
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
   const exported = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
@@ -133,8 +140,8 @@ test('only tags and industry remain in the UI and multi-select tags save, export
     name: `${exported.id}.json`, mimeType: 'application/json', buffer: Buffer.from(stableStringify(exported)),
   });
   await page.getByText('导入内容已通过全数据集校验。', { exact: false }).waitFor();
-  assert.deepEqual(await page.getByLabel('标签（多选）', { exact: true }).evaluate((select) =>
-    [...select.selectedOptions].map((option) => option.value).sort()), selection);
+  assert.deepEqual(await page.getByRole('group', { name: '标签（多选）', exact: true }).locator('input:checked').evaluateAll((inputs) =>
+    inputs.map((input) => input.value).sort()), selection);
   assert.deepEqual(await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true })), exported);
   await page.getByRole('button', { name: '标签 / 行业词表', exact: true }).click();
   assert.equal(await page.getByRole('button', { name: '主主题', exact: true }).count(), 0);
@@ -151,7 +158,12 @@ test('reviewers can explicitly approve records without tags or classification ev
   assert.deepEqual(original.classification, { tag_ids: [], source_ids: [] });
   await page.getByLabel('MIC 交易场所代码', { exact: true }).fill('XNAS');
   await page.getByLabel('审核人', { exact: true }).fill('Synthetic optional-tag reviewer');
-  await page.getByRole('checkbox').check();
+  assert.equal(await page.getByLabel('审核时间（UTC ISO）', { exact: true }).isEditable(), false);
+  assert.equal(await page.getByLabel('审核时间（UTC ISO）', { exact: true }).inputValue(), '');
+  await page.getByRole('checkbox', { name: /我已人工核验/ }).check();
+  assert.deepEqual(await page.locator('form [required]').evaluateAll((controls) =>
+    controls.map((control) => control.labels[0].textContent.trim())),
+  ['原始代码', '规范代码', 'MIC 交易场所代码', '证券类型', '上市状态', '英文名称', '审核状态', '审核人']);
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
   assert.match(await page.locator('#messages').textContent(), /已通过校验/);
   const reviewed = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
@@ -309,11 +321,11 @@ test('records already reviewed at startup downgrade on edit unless explicitly re
       const page = await pageForTest(subtest, {}, source);
       await page.getByRole('button', { name: /^NVDA ·/ }).click();
       assert.equal(await page.locator('section[aria-label="编辑详情"]').getByLabel('审核状态', { exact: true }).inputValue(), 'reviewed');
-      assert.equal(await page.getByRole('checkbox').isChecked(), false);
+      assert.equal(await page.getByRole('checkbox', { name: /我已人工核验/ }).isChecked(), false);
       await page.getByLabel('英文名称', { exact: true }).fill('Synthetic edited startup record');
       if (explicit) {
         await page.getByLabel('审核人', { exact: true }).fill('Synthetic replacement reviewer');
-        await page.getByRole('checkbox').check();
+        await page.getByRole('checkbox', { name: /我已人工核验/ }).check();
       }
       await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
       const edited = await downloadJson(page, page.getByRole('button', { name: '导出已保存的单条 JSON', exact: true }));
@@ -339,7 +351,7 @@ test('record edit, explicit human review, downgrade, safe text, validation and e
   await page.getByLabel('MIC 交易场所代码', { exact: true }).fill('XNAS');
   await page.getByLabel('维护备注', { exact: true }).fill('<img src=x onerror="window.injected=true">');
   await page.getByLabel('审核人', { exact: true }).fill('Browser test fixture only');
-  await page.getByRole('checkbox').check();
+  await page.getByRole('checkbox', { name: /我已人工核验/ }).check();
   await page.getByRole('button', { name: '预览当前表单差异', exact: true }).click();
   assert.equal(await page.locator('section[aria-label="编辑详情"] img').count(), 0);
   assert.equal(await page.evaluate(() => window.injected), undefined);
@@ -380,7 +392,9 @@ test('adding ETF uses separate attributes and keeps identity stable when type ch
   await page.getByRole('button', { name: '由原始代码填入规范代码', exact: true }).click();
   await page.locator('section[aria-label="编辑详情"]').getByLabel('证券类型', { exact: true }).selectOption('etf');
   assert.equal(await page.getByLabel('行业体系', { exact: true }).count(), 0);
-  await page.getByLabel('标签（多选）', { exact: true }).selectOption(['semiconductor-sector', 'leveraged']);
+  const tags = page.getByRole('group', { name: '标签（多选）', exact: true });
+  await tags.locator('input[value="semiconductor-sector"]').check();
+  await tags.locator('input[value="leveraged"]').check();
   await page.getByLabel('分类来源 ID', { exact: true }).fill('human');
   await page.getByLabel('ETF 来源 ID', { exact: true }).fill('human');
   await page.getByLabel('来源证据（JSON 数组）', { exact: true }).fill(JSON.stringify([
@@ -511,7 +525,7 @@ test('industry vocabulary is browsable in three levels and group edits flag revi
   await page.getByLabel('英文名称', { exact: true }).fill('Synthetic hierarchy fixture');
   await page.getByLabel('MIC 交易场所代码', { exact: true }).fill('XNAS');
   await page.getByLabel('审核人', { exact: true }).fill('Synthetic hierarchy reviewer');
-  await page.getByRole('checkbox').check();
+  await page.getByRole('checkbox', { name: /我已人工核验/ }).check();
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
   assert.match(await page.locator('#messages').textContent(), /已通过校验/);
   await page.getByRole('button', { name: '标签 / 行业词表', exact: true }).click();
