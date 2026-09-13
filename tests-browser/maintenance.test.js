@@ -100,7 +100,6 @@ test('search/filter works at desktop and narrow mobile widths without an externa
 
 test('only tags and industry remain in the UI and multi-select tags save to the PR draft', async (t) => {
   const source = createDatasetFixture();
-  source.instruments[0].sources.find((item) => item.id === 'manual-example').label = 'Synthetic historical 主主题 evidence, preserved verbatim.';
   const page = await pageForTest(t, {}, source);
   assert.equal(await page.getByLabel('主主题', { exact: true }).count(), 0);
   assert.equal(await page.locator('.badge').filter({ hasText: '未分类' }).count(), 0);
@@ -117,16 +116,15 @@ test('only tags and industry remain in the UI and multi-select tags save to the 
   assert.equal(await page.getByLabel('主主题（单选）', { exact: true }).count(), 0);
   assert.equal(await page.getByRole('button', { name: '主题 / 标签 / 行业词表', exact: true }).count(), 0);
   assert.doesNotMatch((await page.locator('form legend').allTextContents()).join('\n'), /主主题|交易主题|与主题独立/);
-  assert.match(await page.getByLabel('来源证据（JSON 数组）', { exact: true }).inputValue(), /historical 主主题 evidence/);
   const selection = ['ai', 'semiconductor-ai', 'digital-assets'];
   const tags = page.getByRole('group', { name: '标签（多选）', exact: true });
   for (const value of selection) await tags.locator(`input[value="${value}"]`).check();
   assert.match(await page.locator('#form-state').textContent(), /未保存修改/);
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
   const saved = await detailAfterJson(page);
-  assert.equal(saved.schema_version, '3.0.0');
+  assert.equal(saved.schema_version, '4.0.0');
   assert.deepEqual([...saved.classification.tag_ids].sort(), selection.sort());
-  assert.deepEqual(Object.keys(saved.classification).sort(), ['source_ids', 'tag_ids']);
+  assert.deepEqual(Object.keys(saved.classification).sort(), ['tag_ids']);
   assert.deepEqual(saved.industry, initial.instruments[0].industry);
   assert.deepEqual(saved.sources, source.instruments[0].sources);
   await page.getByRole('button', { name: '标签 / 行业词表', exact: true }).click();
@@ -141,7 +139,7 @@ test('reviewers can explicitly approve records without tags or classification ev
   const page = await pageForTest(t);
   await page.getByRole('button', { name: /^TSLA ·/ }).click();
   const original = initial.instruments.find((record) => record.symbol.canonical === 'TSLA');
-  assert.deepEqual(original.classification, { tag_ids: [], source_ids: [] });
+  assert.deepEqual(original.classification, { tag_ids: [] });
   await page.getByLabel('MIC 交易场所代码', { exact: true }).fill('XNAS');
   await page.getByLabel('审核人', { exact: true }).fill('Synthetic optional-tag reviewer');
   assert.equal(await page.getByLabel('审核时间（UTC ISO）', { exact: true }).isEditable(), false);
@@ -346,10 +344,10 @@ test('record edit, explicit human review, downgrade, safe text and validation ar
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
   const edited = await detailAfterJson(page);
   assert.equal(edited.review.status, 'needs_review');
-  await page.getByLabel('分类来源 ID', { exact: true }).fill('');
+  await page.getByRole('group', { name: '标签（多选）', exact: true })
+    .locator('input[value="us-large-cap"]').check();
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
-  assert.match(await page.locator('#messages').textContent(), /classification needs its own source/);
-  assert.match(await page.locator('#messages').textContent(), /classification needs its own source/);
+  assert.doesNotMatch(await page.locator('#messages').textContent(), /classification/);
 });
 
 test('adding ETF uses separate attributes and keeps identity stable when type changes', async (t) => {
@@ -362,10 +360,9 @@ test('adding ETF uses separate attributes and keeps identity stable when type ch
   const tags = page.getByRole('group', { name: '标签（多选）', exact: true });
   await tags.locator('input[value="semiconductor-sector"]').check();
   await tags.locator('input[value="leveraged"]').check();
-  await page.getByLabel('分类来源 ID', { exact: true }).fill('human');
   await page.getByLabel('ETF 来源 ID', { exact: true }).fill('human');
   await page.getByLabel('来源证据（JSON 数组）', { exact: true }).fill(JSON.stringify([
-    { id: 'human', kind: 'manual', label: 'Synthetic fixture objective', url: null, accessed_at: null, fields: ['/classification', '/etf'] },
+    { id: 'human', kind: 'manual', label: 'Synthetic fixture objective', url: null, accessed_at: null, fields: ['/etf'] },
   ]));
   await page.getByLabel('杠杆倍数', { exact: true }).fill('3');
   await page.getByLabel('方向', { exact: true }).selectOption('long');
@@ -427,7 +424,7 @@ test('three-level selection preserves initial values, cascades and backfills', a
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
   assert.match(await page.locator('#messages').textContent(), /已通过校验/);
   const edited = await detailAfterJson(page);
-  assert.equal(edited.schema_version, '3.0.0');
+  assert.equal(edited.schema_version, '4.0.0');
   assert.equal(edited.industry.industry_id, software.id);
   assert.equal(edited.industry.industry_group_id, software.industry_group_id);
   assert.deepEqual(edited.classification, record.classification);

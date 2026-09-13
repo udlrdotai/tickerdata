@@ -21,7 +21,7 @@ NEXT_VERSION = "b" * 64
 
 def record(identifier="ins-example", symbol="TEST", mic="XNAS"):
     return {
-        "schema_version": "3.0.0", "id": identifier,
+        "schema_version": "4.0.0", "id": identifier,
         "symbol": {"original": symbol, "canonical": symbol, "mic": mic,
                    "aliases": [], "history": []},
         "name": {"en": "Example security", "zh": None},
@@ -29,10 +29,9 @@ def record(identifier="ins-example", symbol="TEST", mic="XNAS"):
         "listing_status": "active",
         "industry": {"system_id": None, "sector_id": None, "industry_group_id": None,
                      "industry_id": None, "source_ids": []},
-        "classification": {"tag_ids": ["cloud", "ai"], "source_ids": ["human"]},
+        "classification": {"tag_ids": ["cloud", "ai"]},
         "etf": None, "related_instrument_ids": [], "notes": "",
-        "sources": [{"id": "human", "kind": "manual", "label": "Reviewed tag evidence",
-                     "url": None, "accessed_at": None, "fields": ["/classification"]}],
+        "sources": [],
         "review": {"status": "reviewed", "reviewed_at": "2026-09-01T00:00:00Z",
                    "reviewer": "Human reviewer"},
     }
@@ -78,7 +77,7 @@ def entries(records):
 
 def bundle(records=None, version=VERSION):
     records = [record()] if records is None else records
-    envelope = {"schema_version": "3.0.0", "data_version": version}
+    envelope = {"schema_version": "4.0.0", "data_version": version}
     files = {
         "instruments.json": encode(dict(envelope, instruments=records)),
         "vocabulary.json": encode(dict(envelope, **vocabulary())),
@@ -133,7 +132,7 @@ class ConsumerTests(unittest.TestCase):
         self.assertEqual(set(result), {"instrument", "tags"})
         self.assertNotIn("primary_theme_id", result["instrument"]["classification"])
         self.assertEqual(result["tags"], vocabulary()["tags"])
-        self.assertEqual(snapshot.schema_version, "3.0.0")
+        self.assertEqual(snapshot.schema_version, "4.0.0")
         self.assertEqual(snapshot.data_version, VERSION)
         self.assertEqual(snapshot.source_commit, "c" * 40)
         self.assertEqual(snapshot.generated_at, "2026-09-01T00:00:00.000Z")
@@ -244,7 +243,7 @@ class ConsumerTests(unittest.TestCase):
 
     def test_reviewed_record_without_tags_preserves_review_requirements(self):
         item = record()
-        item["classification"] = {"tag_ids": [], "source_ids": []}
+        item["classification"] = {"tag_ids": []}
         item["sources"] = []
         snapshot = consumer.Snapshot(bundle([item]))
         self.assertEqual(snapshot.lookup("TEST"), {"instrument": item, "tags": []})
@@ -272,22 +271,21 @@ class ConsumerTests(unittest.TestCase):
         self.assertTrue(all(set(tag) == {"id", "name_zh", "description", "aliases"}
                             for tag in result["tags"]))
 
-    def test_classification_requires_known_unique_tags_and_covering_sources(self):
-        for classification, fields in (
-            ({"tag_ids": ["missing"], "source_ids": ["human"]}, ["/classification"]),
-            ({"tag_ids": ["ai", "ai"], "source_ids": ["human"]}, ["/classification"]),
-            ({"tag_ids": ["ai"], "source_ids": []}, ["/classification"]),
-            ({"tag_ids": ["ai"], "source_ids": ["missing"]}, ["/classification"]),
-            ({"tag_ids": ["ai"], "source_ids": ["human", "human"]}, ["/classification"]),
-            ({"tag_ids": ["ai"], "source_ids": ["human"]}, ["/name"]),
-            ({"tag_ids": [], "source_ids": ["missing"]}, ["/classification"]),
-            ({"tag_ids": [], "source_ids": ["human"]}, ["/name"]),
+    def test_classification_requires_known_unique_tags_and_no_extra_fields(self):
+        for classification in (
+            {"tag_ids": ["missing"]},
+            {"tag_ids": ["ai", "ai"]},
+            {"tag_ids": ["ai"], "source_ids": []},
+            {"tag_ids": []},
         ):
             item = record()
             item["classification"] = classification
-            item["sources"][0]["fields"] = fields
-            with self.subTest(classification=classification, fields=fields), self.assertRaises(consumer.SnapshotError):
-                consumer.Snapshot(bundle([item]))
+            with self.subTest(classification=classification):
+                if classification == {"tag_ids": []}:
+                    self.assertEqual(consumer.Snapshot(bundle([item])).lookup("TEST")["tags"], [])
+                else:
+                    with self.assertRaises(consumer.SnapshotError):
+                        consumer.Snapshot(bundle([item]))
         item = record()
         item["classification"]["tag_ids"] = []
         self.assertEqual(consumer.Snapshot(bundle([item])).lookup("TEST")["tags"], [])
@@ -305,7 +303,8 @@ class ConsumerTests(unittest.TestCase):
         self.assertEqual([tag["id"] for tag in result["tags"]], ["cloud", "ai"])
         item["industry"]["system_id"] = "standard"
         item["industry"]["source_ids"] = ["human"]
-        item["sources"][0]["fields"].append("/industry")
+        item["sources"].append({"id": "human", "kind": "manual", "label": "Industry evidence",
+                                "url": None, "accessed_at": None, "fields": ["/industry"]})
         with self.assertRaisesRegex(consumer.SnapshotError, "ETF"):
             consumer.Snapshot(bundle([item]))
 
@@ -313,7 +312,8 @@ class ConsumerTests(unittest.TestCase):
         item = record()
         item["industry"] = {"system_id": "standard", "sector_id": "technology", "industry_group_id": None,
                             "industry_id": "software", "source_ids": ["human"]}
-        item["sources"][0]["fields"].append("/industry")
+        item["sources"].append({"id": "human", "kind": "manual", "label": "Industry evidence",
+                                "url": None, "accessed_at": None, "fields": ["/industry"]})
         self.assertEqual(consumer.Snapshot(bundle([item])).lookup("TEST")["instrument"]["industry"],
                          item["industry"])
         for key in ("system_id", "sector_id", "industry_group_id", "industry_id"):
@@ -322,7 +322,7 @@ class ConsumerTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(consumer.SnapshotError):
                 consumer.Snapshot(bundle([broken]))
         item["sources"][0]["fields"].remove("/industry")
-        with self.assertRaisesRegex(consumer.SnapshotError, "source"):
+        with self.assertRaisesRegex(consumer.SnapshotError, "[Ss]ource"):
             consumer.Snapshot(bundle([item]))
 
     def test_manifest_requires_exact_file_set(self):
@@ -434,7 +434,6 @@ class ConsumerTests(unittest.TestCase):
             lambda item: item["classification"].update({"primary_theme_id": None}),
             lambda item: item["classification"].update({"tag_ids": ["missing"]}),
             lambda item: item["classification"].update({"tag_ids": ["ai", "ai"]}),
-            lambda item: item["classification"].update({"source_ids": ["missing"]}),
             lambda item: item["classification"].update({"source_ids": []}),
             lambda item: item.update({"related_instrument_ids": ["ins-missing"]}),
             lambda item: item.update({"related_instrument_ids": ["ins-example"]}),

@@ -121,7 +121,7 @@ const industries = [
 export function createVocabularyFixture() {
   const industry_groups = groups.map(([id, name, alias, sector_id]) => ({ ...entry(id, name, [alias]), sector_id }));
   return {
-    schema_version: '3.0.0',
+    schema_version: '4.0.0',
     industry_systems: [
       {
         ...entry('financedatabase', 'FinanceDatabase 行业分类', ['FinanceDatabase']),

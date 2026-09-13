@@ -1,9 +1,8 @@
 {
   "classification": {
-    "source_ids": [
-      "manual-example"
-    ],
-    "tag_ids": ["china-internet"]
+    "tag_ids": [
+      "china-internet"
+    ]
   },
   "etf": {
     "asset_class": null,
@@ -42,13 +41,12 @@
     "reviewer": null,
     "status": "pending"
   },
-  "schema_version": "3.0.0",
+  "schema_version": "4.0.0",
   "security_type": "etf",
   "sources": [
     {
       "accessed_at": null,
       "fields": [
-        "/classification",
         "/etf"
       ],
       "id": "manual-example",

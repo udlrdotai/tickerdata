@@ -5,7 +5,7 @@
   "additionalProperties": false,
   "required": ["schema_version", "industry_systems", "tags"],
   "properties": {
-    "schema_version": { "const": "4.0.0" },
+    "schema_version": { "const": "3.0.0" },
     "tags": { "type": "array", "items": { "$ref": "common#/definitions/label" } },
     "industry_systems": {
       "type": "array",

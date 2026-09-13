@@ -1,9 +1,8 @@
 {
   "classification": {
-    "source_ids": [
-      "manual-example"
-    ],
-    "tag_ids": ["semiconductor-foundry"]
+    "tag_ids": [
+      "semiconductor-foundry"
+    ]
   },
   "etf": null,
   "id": "ins-000009",
@@ -11,7 +10,9 @@
     "industry_group_id": "semiconductors-semiconductor-equipment",
     "industry_id": "semiconductors-semiconductor-equipment",
     "sector_id": "information-technology",
-    "source_ids": ["financedatabase-equities"],
+    "source_ids": [
+      "financedatabase-equities"
+    ],
     "system_id": "financedatabase"
   },
   "issuer": {
@@ -30,26 +31,18 @@
     "reviewer": null,
     "status": "pending"
   },
-  "schema_version": "3.0.0",
+  "schema_version": "4.0.0",
   "security_type": "stock",
   "sources": [
     {
       "accessed_at": "2026-09-08T01:03:47Z",
-      "fields": ["/industry"],
+      "fields": [
+        "/industry"
+      ],
       "id": "financedatabase-equities",
       "kind": "provider",
       "label": "FinanceDatabase TSM (NYQ/XNYS) 原值：Information Technology → Semiconductors & Semiconductor Equipment → Semiconductors & Semiconductor Equipment。仅记录上游分类，待人工审核。",
       "url": "https://github.com/JerBouma/FinanceDatabase/blob/ac05d03dbed851a6fd3905a2e92ee036d0397760/database/equities/NYQ.csv"
-    },
-    {
-      "accessed_at": null,
-      "fields": [
-        "/classification"
-      ],
-      "id": "manual-example",
-      "kind": "manual",
-      "label": "用户需求中的分类语义示例；仅为待审核起点，不是发行人或交易所证据。",
-      "url": null
     }
   ],
   "symbol": {

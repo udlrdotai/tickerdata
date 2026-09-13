@@ -67,9 +67,9 @@ async function applyPreparedMigration(directory, prepared, expected) {
 }
 
 function kindOf(payload) {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Expected a v1/v2 instrument, vocabulary, or maintenance bundle');
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Expected a v1/v2/v3 instrument, vocabulary, or maintenance bundle');
   if ('data_version' in payload || 'manifest.json' in payload || 'files' in payload) throw new Error('Historical releases cannot be migrated or rewritten; migrate maintenance source data and publish a new release');
-  if (!isLegacyVersion(payload.schema_version)) throw new Error('Migration requires original schema_version 1.0.0 or 2.0.0; already migrated or unsupported protocol');
+  if (!isLegacyVersion(payload.schema_version)) throw new Error('Migration requires original schema_version 1.0.0, 2.0.0, or 3.0.0; already migrated or unsupported protocol');
   if ('instruments' in payload) return 'dataset';
   if ('industry_systems' in payload) return 'vocabulary';
   return 'instrument';
@@ -89,7 +89,7 @@ function merge(current, payload, kind) {
 
 function legacyVocabularyContext(vocabulary, version) {
   const result = structuredClone(vocabulary);
-  if (!isLegacyVersion(result.schema_version)) result.themes = structuredClone(result.tags);
+  if (version !== '3.0.0' && !result.themes) result.themes = structuredClone(result.tags);
   if (version === '1.0.0') {
     for (const system of result.industry_systems) {
       delete system.industry_groups;

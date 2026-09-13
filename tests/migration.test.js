@@ -8,6 +8,7 @@ import { validateDataset, validateLegacyDataset, validateReviewTransitions, vali
 import { prepareMigration, applyMigration } from '../scripts/migrate.js';
 import { loadDataset } from '../scripts/cli.js';
 import { migrateDataset } from '../src/migration.js';
+import { createDatasetFixture } from './fixtures/dataset.js';
 
 const label = (id) => ({ id, name_zh: id, aliases: [], description: '' });
 function legacyRecord(id = 'ins-first', status = 'pending') {
@@ -60,11 +61,11 @@ test('explicit migration validates original v1 and preserves content and legitim
   assert.equal(stableStringify(before), bytes);
   assert.equal(preview.changed.length, 3);
   assert.deepEqual(validateDataset(preview.candidate), []);
-  assert.equal(preview.candidate.schema_version, '3.0.0');
+  assert.equal(preview.candidate.schema_version, '4.0.0');
   assert.equal(preview.candidate.instruments[0].review.status, 'pending');
   assert.deepEqual(preview.candidate.instruments[1].review, before.instruments[1].review);
-  assert.deepEqual(preview.candidate.instruments[0].sources, before.instruments[0].sources);
-  assert.deepEqual(preview.candidate.instruments[0].classification, { tag_ids: ['tag', 'theme'], source_ids: ['human'] });
+  assert.deepEqual(preview.candidate.instruments[0].sources, [{ ...before.instruments[0].sources[0], fields: ['/industry'] }]);
+  assert.deepEqual(preview.candidate.instruments[0].classification, { tag_ids: ['tag', 'theme'] });
   assert.equal(preview.candidate.instruments[0].industry.industry_group_id, null);
   assert.deepEqual(preview.candidate.vocabulary.industry_systems[0].industry_groups, []);
   assert.equal(preview.candidate.vocabulary.industry_systems[0].industries[0].industry_group_id, null);
@@ -80,7 +81,7 @@ test('migration supports original single record and vocabulary, preserving a coh
   for (const payload of [original.instruments[0], original.vocabulary]) {
     const preview = prepareMigration(original, payload);
     assert.deepEqual(validateDataset(preview.candidate), []);
-    assert.ok(preview.candidate.instruments.every((record) => record.schema_version === '3.0.0'));
+    assert.ok(preview.candidate.instruments.every((record) => record.schema_version === '4.0.0'));
   }
   const current = prepareMigration(original, original).candidate;
   const oldRecord = structuredClone(original.instruments[0]);
@@ -95,7 +96,31 @@ test('migration supports original single record and vocabulary, preserving a coh
   assert.equal(vocabularyPreview.candidate.vocabulary.tags.find((tag) => tag.id === 'theme').name_zh, oldVocabulary.themes[0].name_zh);
 });
 
-test('malformed or semantically invalid old input is never silently coerced to v3', () => {
+test('migration removes v3 classification sources without affecting other source coverage', () => {
+  const original = createDatasetFixture();
+  original.schema_version = '3.0.0';
+  original.vocabulary.schema_version = '3.0.0';
+  for (const record of original.instruments) {
+    record.schema_version = '3.0.0';
+    record.classification.source_ids = [];
+    if (record.classification.tag_ids.length) {
+      const id = `tag-source-${record.id}`;
+      record.classification.source_ids.push(id);
+      record.sources.push({
+        id, kind: 'manual', label: 'Legacy tag rationale',
+        url: null, accessed_at: null, fields: ['/classification'],
+      });
+    }
+  }
+  assert.deepEqual(validateLegacyDataset(original), []);
+  const migrated = migrateDataset(original);
+  assert.deepEqual(validateDataset(migrated), []);
+  assert.ok(migrated.instruments.every((record) =>
+    !Object.hasOwn(record.classification, 'source_ids') &&
+    record.sources.every((source) => !source.fields.includes('/classification'))));
+});
+
+test('malformed or semantically invalid old input is never silently coerced to v4', () => {
   const current = legacyDataset();
   for (const mutation of [
     (value) => { value.extra = true; },
@@ -106,7 +131,7 @@ test('malformed or semantically invalid old input is never silently coerced to v
     (value) => { value.sources[0].fields = ['/classification']; },
     (value) => { value.classification.tag_ids = ['missing']; },
     (value) => { value.review.reviewed_at = '2026-02-30T00:00:00Z'; },
-    (value) => { value.schema_version = '3.0.0'; },
+    (value) => { value.schema_version = '4.0.0'; },
   ]) {
     const record = structuredClone(current.instruments[0]);
     mutation(record);
@@ -145,7 +170,7 @@ test('migration never grants review and propagates downgrades through reviewed r
   assert.equal(importedReview.candidate.instruments[0].review.status, 'needs_review');
 });
 
-test('legacy suggestions retain original strict shape and hashes, never v3 applicability', () => {
+test('legacy suggestions retain original strict shape and hashes, never v4 applicability', () => {
   const original = legacyDataset();
   const suggestion = {
     schema_version: '1.0.0', id: 'legacy-suggestion', instrument_id: 'ins-first',
@@ -161,8 +186,8 @@ test('legacy suggestions retain original strict shape and hashes, never v3 appli
   assert.match(validateSuggestion(suggestion, migrated, recordHash).join('\n'), /stale base/);
   assert.equal(stableStringify(suggestion), bytes);
   assert.ok(validateSuggestionShape({ ...suggestion, extra: true }).length);
-  assert.ok(validateSuggestionShape({ ...suggestion, schema_version: '3.0.0' }).length);
-  const fresh = { ...suggestion, schema_version: '3.0.0', base_record_sha256: recordHash(migrated.instruments[0]), new_tag_proposals: [] };
+  assert.ok(validateSuggestionShape({ ...suggestion, schema_version: '4.0.0' }).length);
+  const fresh = { ...suggestion, schema_version: '4.0.0', base_record_sha256: recordHash(migrated.instruments[0]), new_tag_proposals: [] };
   delete fresh.new_theme_proposals;
   assert.deepEqual(validateSuggestion(fresh, migrated, recordHash), []);
 });
@@ -202,7 +227,7 @@ test('valid pending legacy input downgrades contextual reviewed dependents witho
   assert.throws(() => prepareMigration(current, invalidBundle), /must also be reviewed/);
 });
 
-test('migration apply binds source and input hashes, preserves historical releases, and writes v3 atomically', async () => {
+test('migration apply binds source and input hashes, preserves historical releases, and writes v4 atomically', async () => {
   const folder = await mkdtemp(resolve('.migration-test-'));
   try {
     const original = legacyDataset();
@@ -256,7 +281,7 @@ test('v2 migration preserves full industry hierarchy and ETF attributes and reje
   assert.deepEqual(candidate.instruments[0].industry, original.instruments[0].industry);
   assert.deepEqual(candidate.vocabulary.industry_systems, original.vocabulary.industry_systems);
   assert.deepEqual(candidate.instruments[1].etf, original.instruments[1].etf);
-  assert.deepEqual(candidate.instruments[1].sources, original.instruments[1].sources);
+  assert.deepEqual(candidate.instruments[1].sources, [{ ...original.instruments[1].sources[0], fields: ['/industry', '/etf'] }]);
   assert.deepEqual(candidate.instruments[1].review, original.instruments[1].review);
   for (const mutate of [
     (value) => { value.instruments[0].industry.industry_group_id = 'unknown'; },
@@ -280,7 +305,7 @@ for (const version of ['1.0.0', '2.0.0']) {
       assert.deepEqual(candidate, migrateDataset(original));
       assert.deepEqual(validateDataset(candidate), []);
       assert.deepEqual(candidate.instruments[1].review, original.instruments[1].review);
-      assert.deepEqual(candidate.instruments[1].sources, original.instruments[1].sources);
+      assert.deepEqual(candidate.instruments[1].sources, [{ ...original.instruments[1].sources[0], fields: ['/industry'] }]);
       assert.deepEqual(candidate.vocabulary.tags, [...original.vocabulary.tags, ...original.vocabulary.themes]);
       assert.deepEqual(validateReviewTransitions(original, candidate), []);
       const replay = prepareMigration(candidate, payload);
@@ -366,7 +391,7 @@ for (const version of ['1.0.0', '2.0.0']) {
     assert.deepEqual(prepareMigration(current, replay).candidate.instruments[1].review, current.instruments[1].review);
   });
 
-  test(`${version} historical suggestions retain strict original shapes and reject v3 replay`, () => {
+  test(`${version} historical suggestions retain strict original shapes and reject v4 replay`, () => {
     const original = legacyDataset(version);
     const suggestion = {
       schema_version: version, id: 'historical', instrument_id: 'ins-first',

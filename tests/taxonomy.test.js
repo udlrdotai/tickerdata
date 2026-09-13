@@ -38,7 +38,7 @@ Utilities|Utilities|Electric Utilities;Gas Utilities;Independent Power and Renew
 `.trim().split('\n').map((line) => line.split('|'));
 
 test('the independent FinanceDatabase fixture matches all 11/24/69 pinned label paths', () => {
-  assert.equal(vocabulary.schema_version, '3.0.0');
+  assert.equal(vocabulary.schema_version, '4.0.0');
   assert.equal(system.sectors.length, 11);
   assert.equal(system.industry_groups.length, 24);
   assert.equal(system.industries.length, 69);
@@ -79,14 +79,14 @@ test('legacy Yahoo labels keep their original IDs and do not invent industry gro
   ]);
 });
 
-test('v3 fixtures keep all labels as optional tags with stable records and detached data', () => {
+test('v4 fixtures keep all labels as optional tags with stable records and detached data', () => {
   const fixture = createDatasetFixture();
   assert.equal(fixture.instruments.length, 17);
-  assert.equal(fixture.schema_version, '3.0.0');
+  assert.equal(fixture.schema_version, '4.0.0');
   assert.deepEqual(Object.keys(fixture.vocabulary).sort(), ['industry_systems', 'schema_version', 'tags']);
   assert.equal(fixture.vocabulary.tags.length, 15);
   for (const record of fixture.instruments) {
-    assert.deepEqual(Object.keys(record.classification).sort(), ['source_ids', 'tag_ids']);
+    assert.deepEqual(Object.keys(record.classification).sort(), ['tag_ids']);
   }
   assert.deepEqual(fixture.instruments[0].classification.tag_ids, ['ai', 'semiconductor-ai']);
   assert.deepEqual(fixture.instruments[12].classification.tag_ids, ['leveraged', 'semiconductor-sector']);

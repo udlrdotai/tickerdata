@@ -24,7 +24,7 @@ import urllib.request
 import warnings
 
 
-SCHEMA_VERSION = "3.0.0"
+SCHEMA_VERSION = "4.0.0"
 DATA_FILES = ("instruments.json", "vocabulary.json", "symbol-index.json")
 VERSION_RE = re.compile(r"[a-f0-9]{64}")
 ID_RE = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
@@ -277,7 +277,7 @@ def _record(value, tags, systems):
         _array(source["fields"], "source.fields")
         _require(bool(source["fields"]), "Source must cover fields")
         for field in source["fields"]:
-            _choice(field, ("/industry", "/classification", "/etf", "/name", "/symbol",
+            _choice(field, ("/industry", "/etf", "/name", "/symbol",
                             "/issuer", "/listing_status", "/notes"), "source.fields")
         sources[source["id"]] = source
 
@@ -308,13 +308,10 @@ def _record(value, tags, systems):
     _require(not parent_group or industry["sector_id"] is None or
              parent_group["sector_id"] == industry["sector_id"], "Industry parent group/sector mismatch")
 
-    classification = _object(value["classification"], "tag_ids source_ids",
+    classification = _object(value["classification"], "tag_ids",
                              "classification")
     _ids(classification["tag_ids"], "classification.tag_ids")
     _require(all(item in tags for item in classification["tag_ids"]), "Unknown tag")
-    _ids(classification["source_ids"], "classification.source_ids")
-    _require(not classification["tag_ids"] or bool(classification["source_ids"]),
-             "Classification tags need source")
     _ids(industry["source_ids"], "industry.source_ids")
     _require(not any(industry[key] is not None for key in hierarchy)
              or bool(industry["source_ids"]), "Industry needs source")
@@ -346,7 +343,7 @@ def _record(value, tags, systems):
                          if key != "source_ids") or bool(etf["source_ids"]), "ETF attributes need source")
     else:
         _require(etf is None, "Non-ETF must not have ETF attributes")
-    for field in ("industry", "classification", "etf"):
+    for field in ("industry", "etf"):
         for source_id in value[field]["source_ids"] if value[field] is not None else []:
             _require(source_id in sources and "/" + field in sources[source_id]["fields"],
                      "{}: unknown source or source does not cover field".format(field))

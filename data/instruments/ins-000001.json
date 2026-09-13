@@ -1,8 +1,5 @@
 {
   "classification": {
-    "source_ids": [
-      "manual-example"
-    ],
     "tag_ids": [
       "ai",
       "semiconductor-ai"
@@ -35,7 +32,7 @@
     "reviewer": "gankthisway",
     "status": "reviewed"
   },
-  "schema_version": "3.0.0",
+  "schema_version": "4.0.0",
   "security_type": "stock",
   "sources": [
     {
@@ -47,16 +44,6 @@
       "kind": "provider",
       "label": "FinanceDatabase NVDA (NMS/XNAS) 原值：Information Technology → Semiconductors & Semiconductor Equipment → Semiconductors & Semiconductor Equipment。仅记录上游分类，待人工审核。",
       "url": "https://github.com/JerBouma/FinanceDatabase/blob/ac05d03dbed851a6fd3905a2e92ee036d0397760/database/equities/NMS.csv"
-    },
-    {
-      "accessed_at": null,
-      "fields": [
-        "/classification"
-      ],
-      "id": "manual-example",
-      "kind": "manual",
-      "label": "用户需求中的分类语义示例；仅为待审核起点，不是发行人或交易所证据。",
-      "url": null
     }
   ],
   "symbol": {
