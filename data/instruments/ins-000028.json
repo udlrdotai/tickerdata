@@ -1,0 +1,53 @@
+{
+  "classification": {
+    "tag_ids": []
+  },
+  "etf": null,
+  "id": "ins-000028",
+  "industry": {
+    "industry_group_id": "energy",
+    "industry_id": "oil-gas-consumable-fuels",
+    "sector_id": "energy",
+    "source_ids": [
+      "financedatabase-equities"
+    ],
+    "system_id": "financedatabase"
+  },
+  "issuer": {
+    "country": null,
+    "id": null
+  },
+  "listing_status": "unknown",
+  "name": {
+    "en": null,
+    "zh": null
+  },
+  "notes": "从固定版本 FinanceDatabase 导入行业分类。能源方向直接使用标准板块与行业筛选；名称、上市状态及其他未核实属性留空或 unknown，待人工审核。",
+  "related_instrument_ids": [],
+  "review": {
+    "reviewed_at": null,
+    "reviewer": null,
+    "status": "pending"
+  },
+  "schema_version": "4.0.0",
+  "security_type": "stock",
+  "sources": [
+    {
+      "accessed_at": "2026-09-14T15:24:16Z",
+      "fields": [
+        "/industry"
+      ],
+      "id": "financedatabase-equities",
+      "kind": "provider",
+      "label": "FinanceDatabase XOM (NYQ/XNYS) 原值：Energy → Energy → Oil, Gas & Consumable Fuels。仅记录上游分类，待人工审核。",
+      "url": "https://github.com/JerBouma/FinanceDatabase/blob/ac05d03dbed851a6fd3905a2e92ee036d0397760/database/equities/NYQ.csv"
+    }
+  ],
+  "symbol": {
+    "aliases": [],
+    "canonical": "XOM",
+    "history": [],
+    "mic": null,
+    "original": "XOM"
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "classification": {
+    "tag_ids": [
+      "ai",
+      "semiconductor-ai",
+      "semiconductor-sector"
+    ]
+  },
+  "etf": null,
+  "id": "ins-000024",
+  "industry": {
+    "industry_group_id": "semiconductors-semiconductor-equipment",
+    "industry_id": "semiconductors-semiconductor-equipment",
+    "sector_id": "information-technology",
+    "source_ids": [
+      "financedatabase-equities"
+    ],
+    "system_id": "financedatabase"
+  },
+  "issuer": {
+    "country": null,
+    "id": null
+  },
+  "listing_status": "unknown",
+  "name": {
+    "en": null,
+    "zh": null
+  },
+  "notes": "从固定版本 FinanceDatabase 导入行业分类；主题标签用于跨行业检索。名称、上市状态及其他未核实属性留空或 unknown，待人工审核。",
+  "related_instrument_ids": [],
+  "review": {
+    "reviewed_at": null,
+    "reviewer": null,
+    "status": "pending"
+  },
+  "schema_version": "4.0.0",
+  "security_type": "stock",
+  "sources": [
+    {
+      "accessed_at": "2026-09-14T15:24:16Z",
+      "fields": [
+        "/industry"
+      ],
+      "id": "financedatabase-equities",
+      "kind": "provider",
+      "label": "FinanceDatabase AVGO (NMS/XNAS) 原值：Information Technology → Semiconductors & Semiconductor Equipment → Semiconductors & Semiconductor Equipment。仅记录上游分类，待人工审核。",
+      "url": "https://github.com/JerBouma/FinanceDatabase/blob/ac05d03dbed851a6fd3905a2e92ee036d0397760/database/equities/NMS.csv"
+    }
+  ],
+  "symbol": {
+    "aliases": [],
+    "canonical": "AVGO",
+    "history": [],
+    "mic": null,
+    "original": "AVGO"
+  }
+}

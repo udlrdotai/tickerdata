@@ -49,7 +49,7 @@
 
 ## 现有股票的上游分类
 
-以下是首次导入时的**上游原值及来源快照**，不是独立确认后的分类结论。首次导入的 10 只股票均为 `pending`，没有据此补写审核人、审核时间、上市状态、名称或 MIC。后续可以经过人工核验补齐资料并变为 `reviewed`；当前值和审核状态以证券源文件为准，不以本节的导入快照锁定日常维护。
+以下是导入时的**上游原值及来源快照**，不是独立确认后的分类结论。导入记录默认均为 `pending`，没有据此补写审核人、审核时间、上市状态、名称或 MIC。后续可以经过人工核验补齐资料并变为 `reviewed`；当前值和审核状态以证券源文件为准，不以本节的导入快照锁定日常维护。
 
 来源文件：[NMS.csv](https://github.com/JerBouma/FinanceDatabase/blob/ac05d03dbed851a6fd3905a2e92ee036d0397760/database/equities/NMS.csv)、[NYQ.csv](https://github.com/JerBouma/FinanceDatabase/blob/ac05d03dbed851a6fd3905a2e92ee036d0397760/database/equities/NYQ.csv)。每条证券的 `sources` 单独保存其文件链接、获取时间、上游代码和原始三层名称，且通过 `industry.source_ids` 关联 `/industry` 依据。
 
@@ -65,10 +65,30 @@
 | BABA | BABA / NYQ | Consumer Discretionary → Retailing → Internet & Direct Marketing Retail |
 | TSM | TSM / NYQ | Information Technology → Semiconductors & Semiconductor Equipment → Semiconductors & Semiconductor Equipment |
 | BRK.B | BRK-B / NYQ | Financials → Insurance → Insurance |
+| MSFT | MSFT / NMS | Information Technology → Software & Services → Software |
+| META | META / NMS | Communication Services → Telecommunication Services → Diversified Telecommunication Services |
+| PLTR | PLTR / NYQ | Information Technology → Software & Services → Software |
+| ORCL | ORCL / NYQ | Information Technology → Software & Services → Software |
+| AMZN | AMZN / NMS | Consumer Discretionary → Retailing → Internet & Direct Marketing Retail |
+| AMD | AMD / NMS | Information Technology → Semiconductors & Semiconductor Equipment → Semiconductors & Semiconductor Equipment |
+| AVGO | AVGO / NMS | Information Technology → Semiconductors & Semiconductor Equipment → Semiconductors & Semiconductor Equipment |
+| INTC | INTC / NMS | Information Technology → Semiconductors & Semiconductor Equipment → Semiconductors & Semiconductor Equipment |
+| QCOM | QCOM / NMS | Information Technology → Semiconductors & Semiconductor Equipment → Semiconductors & Semiconductor Equipment |
+| MU | MU / NMS | Information Technology → Semiconductors & Semiconductor Equipment → Semiconductors & Semiconductor Equipment |
+| XOM | XOM / NYQ | Energy → Energy → Oil, Gas & Consumable Fuels |
+| CVX | CVX / NYQ | Energy → Energy → Oil, Gas & Consumable Fuels |
+| COP | COP / NYQ | Energy → Energy → Oil, Gas & Consumable Fuels |
+| SLB | SLB / NYQ | Energy → Energy → Energy Equipment & Services |
+| EOG | EOG / NYQ | Energy → Energy → Oil, Gas & Consumable Fuels |
+| COIN | COIN / NMS | Information Technology → Software & Services → Software |
+| HOOD | HOOD / NMS | Financials → Diversified Financials → Capital Markets |
+| RIOT | RIOT / NMS | Information Technology → Software & Services → Software |
+| CLSK | CLSK / NMS | Information Technology → Software & Services → Software |
+| IREN | IREN / NMS | Information Technology → Software & Services → Software |
 
-**GOOG / GOOGL 的“综合电信服务”分类存在待复核疑点。** 按维护决策先保留原值，并在证券备注及来源说明中明确提示，不偷偷更正为其他行业。之后若经人工核对需要改值，应新增对应依据，保留旧来源，按审核流程处理。
+**GOOG / GOOGL / META 的“综合电信服务”分类存在待复核疑点。** 按维护决策先保留原值，并在证券备注及来源说明中明确提示，不偷偷更正为其他行业。之后若经人工核对需要改值，应新增对应依据，保留旧来源，按审核流程处理。
 
-BRK.B 用已有的 Yahoo 别名 BRK-B 匹配上游，规范代码不变。CRWV 的“AI云/算力”、MSTR 的“比特币资产”等自定义方向如今作为多选标签保留，不因行业分类而丢失。
+BRK.B 用已有的 Yahoo 别名 BRK-B 匹配上游，规范代码不变。CRWV 的“AI云/算力”、MSTR 的“比特币资产”，以及本次导入的人工智能、半导体和数字资产方向作为多选标签保留，不因行业分类而丢失。能源方向直接使用标准板块与行业筛选。
 
 ## 维护约束
 
