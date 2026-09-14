@@ -5,16 +5,20 @@
     ]
   },
   "etf": {
-    "asset_class": null,
-    "description": null,
-    "direction": null,
-    "exposure": [],
-    "fund_category": null,
-    "leverage_factor": null,
-    "objective": "长期美国国债敞口",
-    "reset_period": null,
+    "objective": "Seek to track the investment results of an index composed of US Treasury bonds with remaining maturities greater than twenty years.",
+    "asset_class": "fixed_income",
+    "exposure": [
+      "ICE U.S. Treasury 20+ Year Bond Index",
+      "US Treasury bonds over 20 years",
+      "long-duration sovereign debt"
+    ],
+    "leverage_factor": 1,
+    "direction": "long",
+    "reset_period": "none",
+    "fund_category": "US long-term government bond",
+    "description": "跟踪二十年以上期限的美国国债指数，信用质量高，但对长期利率变化较为敏感。",
     "source_ids": [
-      "manual-example"
+      "official-product"
     ]
   },
   "id": "ins-000016",
@@ -26,20 +30,20 @@
     "system_id": null
   },
   "issuer": {
-    "country": null,
+    "country": "US",
     "id": null
   },
-  "listing_status": "unknown",
+  "listing_status": "active",
   "name": {
-    "en": null,
-    "zh": null
+    "en": "iShares 20+ Year Treasury Bond ETF",
+    "zh": "iShares二十年以上美国国债ETF"
   },
-  "notes": "初始化占位样例；仅采用用户提供的示例语义，未经独立核实。名称、MIC、上市状态及未核实属性留空或 unknown。请逐项核实后再填写审核人和时间；不可直接作为已审核事实。内部 ID 是本项目分配的标识，不是官方证券代码。",
+  "notes": "已于 2026-09-15 根据交易所页面和基金发行人官方产品页核实证券身份、上市状态及 ETF 产品属性。",
   "related_instrument_ids": [],
   "review": {
-    "reviewed_at": null,
-    "reviewer": null,
-    "status": "needs_review"
+    "reviewed_at": "2026-09-14T20:07:45.048Z",
+    "reviewer": "gankthisway",
+    "status": "reviewed"
   },
   "schema_version": "4.0.0",
   "security_type": "etf",
@@ -53,13 +57,36 @@
       "kind": "manual",
       "label": "用户需求中的分类语义示例；仅为待审核起点，不是发行人或交易所证据。",
       "url": null
+    },
+    {
+      "accessed_at": "2026-09-14T20:07:45Z",
+      "fields": [
+        "/name",
+        "/symbol",
+        "/issuer",
+        "/listing_status"
+      ],
+      "id": "official-listing",
+      "kind": "exchange",
+      "label": "Nasdaq — iShares 20+ Year Treasury Bond ETF (TLT)",
+      "url": "https://www.nasdaq.com/market-activity/etf/tlt"
+    },
+    {
+      "accessed_at": "2026-09-14T20:07:45Z",
+      "fields": [
+        "/etf"
+      ],
+      "id": "official-product",
+      "kind": "issuer",
+      "label": "iShares — iShares 20+ Year Treasury Bond ETF",
+      "url": "https://www.ishares.com/us/products/239454/ishares-20-year-treasury-bond-etf"
     }
   ],
   "symbol": {
     "aliases": [],
     "canonical": "TLT",
     "history": [],
-    "mic": null,
+    "mic": "XNAS",
     "original": "TLT"
   }
 }

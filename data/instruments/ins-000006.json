@@ -5,29 +5,29 @@
   "etf": null,
   "id": "ins-000006",
   "industry": {
-    "industry_group_id": "telecommunication-services",
-    "industry_id": "diversified-telecommunication-services",
+    "system_id": "financedatabase",
     "sector_id": "communication-services",
+    "industry_group_id": "media-entertainment",
+    "industry_id": "interactive-media-services",
     "source_ids": [
-      "financedatabase-equities"
-    ],
-    "system_id": "financedatabase"
+      "official-review"
+    ]
   },
   "issuer": {
-    "country": null,
+    "country": "US",
     "id": "issuer-000001"
   },
-  "listing_status": "unknown",
+  "listing_status": "active",
   "name": {
-    "en": null,
-    "zh": null
+    "en": "Alphabet Inc. Class A Common Stock",
+    "zh": "Alphabet（谷歌母公司）A类股"
   },
-  "notes": "初始化占位样例；仅采用用户提供的示例语义，未经独立核实。名称、MIC、上市状态及未核实属性留空或 unknown。请逐项核实后再填写审核人和时间；不可直接作为已审核事实。内部 ID 是本项目分配的标识，不是官方证券代码。\n行业疑点：FinanceDatabase 固定版本将 GOOGL 归为综合电信服务（Diversified Telecommunication Services）。此处忠实记录原值，待人工复核，不表示本项目确认该分类正确。",
+  "notes": "已于 2026-09-15 根据最新 SEC 定期报告核实证券名称、交易代码、上市市场、发行人注册地及上市状态。 Alphabet 的搜索、YouTube、广告及互联网平台业务属于互动媒体与服务，不属于综合电信服务。",
   "related_instrument_ids": [],
   "review": {
-    "reviewed_at": null,
-    "reviewer": null,
-    "status": "pending"
+    "reviewed_at": "2026-09-14T20:07:45.048Z",
+    "reviewer": "gankthisway",
+    "status": "reviewed"
   },
   "schema_version": "4.0.0",
   "security_type": "stock",
@@ -41,13 +41,27 @@
       "kind": "provider",
       "label": "FinanceDatabase GOOGL (NMS/XNAS) 原值：Communication Services → Telecommunication Services → Diversified Telecommunication Services。电信分类存在疑点，保留上游原值待人工复核。",
       "url": "https://github.com/JerBouma/FinanceDatabase/blob/ac05d03dbed851a6fd3905a2e92ee036d0397760/database/equities/NMS.csv"
+    },
+    {
+      "accessed_at": "2026-09-14T20:07:45Z",
+      "fields": [
+        "/name",
+        "/symbol",
+        "/issuer",
+        "/listing_status",
+        "/industry"
+      ],
+      "id": "official-review",
+      "kind": "issuer",
+      "label": "Alphabet Inc. 2025 Form 10-K",
+      "url": "https://www.sec.gov/Archives/edgar/data/1652044/000165204426000018/goog-20251231.htm"
     }
   ],
   "symbol": {
     "aliases": [],
     "canonical": "GOOGL",
     "history": [],
-    "mic": null,
+    "mic": "XNAS",
     "original": "GOOGL"
   }
 }

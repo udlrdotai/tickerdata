@@ -6,16 +6,20 @@
     ]
   },
   "etf": {
-    "asset_class": null,
-    "description": null,
-    "direction": "long",
-    "exposure": [],
-    "fund_category": null,
+    "objective": "Seek daily investment results, before fees and expenses, of 300% of the daily performance of the ICE Semiconductor Index.",
+    "asset_class": "equity",
+    "exposure": [
+      "ICE Semiconductor Index",
+      "US-listed semiconductor companies",
+      "equity and derivative instruments"
+    ],
     "leverage_factor": 3,
-    "objective": "半导体板块每日三倍做多 ETF",
+    "direction": "long",
     "reset_period": "daily",
+    "fund_category": "daily leveraged semiconductor equity",
+    "description": "通过股票和衍生品寻求半导体指数单日回报的三倍多头结果；每日重置，多日累计回报不保证等于同期指数回报的三倍。",
     "source_ids": [
-      "manual-example"
+      "official-product"
     ]
   },
   "id": "ins-000013",
@@ -27,20 +31,20 @@
     "system_id": null
   },
   "issuer": {
-    "country": null,
+    "country": "US",
     "id": null
   },
-  "listing_status": "unknown",
+  "listing_status": "active",
   "name": {
-    "en": null,
-    "zh": null
+    "en": "Direxion Daily Semiconductor Bull 3X Shares",
+    "zh": "Direxion每日三倍做多半导体ETF"
   },
-  "notes": "初始化占位样例；仅采用用户提供的示例语义，未经独立核实。名称、MIC、上市状态及未核实属性留空或 unknown。请逐项核实后再填写审核人和时间；不可直接作为已审核事实。内部 ID 是本项目分配的标识，不是官方证券代码。",
+  "notes": "已于 2026-09-15 根据交易所页面和基金发行人官方产品页核实证券身份、上市状态及 ETF 产品属性。",
   "related_instrument_ids": [],
   "review": {
-    "reviewed_at": null,
-    "reviewer": null,
-    "status": "pending"
+    "reviewed_at": "2026-09-14T20:07:45.048Z",
+    "reviewer": "gankthisway",
+    "status": "reviewed"
   },
   "schema_version": "4.0.0",
   "security_type": "etf",
@@ -54,13 +58,36 @@
       "kind": "manual",
       "label": "用户需求中的分类语义示例；仅为待审核起点，不是发行人或交易所证据。",
       "url": null
+    },
+    {
+      "accessed_at": "2026-09-14T20:07:45Z",
+      "fields": [
+        "/name",
+        "/symbol",
+        "/issuer",
+        "/listing_status"
+      ],
+      "id": "official-listing",
+      "kind": "exchange",
+      "label": "NYSE — ARCX:SOXL",
+      "url": "https://www.nyse.com/quote/ARCX:SOXL"
+    },
+    {
+      "accessed_at": "2026-09-14T20:07:45Z",
+      "fields": [
+        "/etf"
+      ],
+      "id": "official-product",
+      "kind": "issuer",
+      "label": "Direxion — Daily Semiconductor Bull and Bear 3X ETFs",
+      "url": "https://www.direxion.com/product/daily-semiconductor-bull-bear-3x-etfs"
     }
   ],
   "symbol": {
     "aliases": [],
     "canonical": "SOXL",
     "history": [],
-    "mic": null,
+    "mic": "ARCX",
     "original": "SOXL"
   }
 }

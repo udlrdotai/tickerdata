@@ -17,20 +17,20 @@
     "system_id": "financedatabase"
   },
   "issuer": {
-    "country": null,
+    "country": "US",
     "id": null
   },
-  "listing_status": "unknown",
+  "listing_status": "active",
   "name": {
-    "en": null,
-    "zh": null
+    "en": "Microsoft Corporation Common Stock",
+    "zh": "微软普通股"
   },
-  "notes": "从固定版本 FinanceDatabase 导入行业分类；主题标签用于跨行业检索。名称、上市状态及其他未核实属性留空或 unknown，待人工审核。",
+  "notes": "已于 2026-09-15 根据最新 SEC 定期报告核实证券名称、交易代码、上市市场、发行人注册地及上市状态。",
   "related_instrument_ids": [],
   "review": {
-    "reviewed_at": null,
-    "reviewer": null,
-    "status": "pending"
+    "reviewed_at": "2026-09-14T20:07:45.048Z",
+    "reviewer": "gankthisway",
+    "status": "reviewed"
   },
   "schema_version": "4.0.0",
   "security_type": "stock",
@@ -44,13 +44,26 @@
       "kind": "provider",
       "label": "FinanceDatabase MSFT (NMS/XNAS) 原值：Information Technology → Software & Services → Software。仅记录上游分类，待人工审核。",
       "url": "https://github.com/JerBouma/FinanceDatabase/blob/ac05d03dbed851a6fd3905a2e92ee036d0397760/database/equities/NMS.csv"
+    },
+    {
+      "accessed_at": "2026-09-14T20:07:45Z",
+      "fields": [
+        "/name",
+        "/symbol",
+        "/issuer",
+        "/listing_status"
+      ],
+      "id": "official-review",
+      "kind": "issuer",
+      "label": "Microsoft Corporation 2026 Form 10-K",
+      "url": "https://www.sec.gov/Archives/edgar/data/789019/000119312526323660/msft-20260630.htm"
     }
   ],
   "symbol": {
     "aliases": [],
     "canonical": "MSFT",
     "history": [],
-    "mic": null,
+    "mic": "XNAS",
     "original": "MSFT"
   }
 }
