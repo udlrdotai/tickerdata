@@ -8,9 +8,9 @@
 
 采用原生静态网页、每证券一个 JSON、集中词表、JSON Schema + 交叉引用校验、GitHub Actions 构建、Python 标准库消费。浏览器不依赖 Yahoo 或 AI，没有外部 CDN。
 
-初始化包含 NVDA、CRWV、MSTR、TSLA、GOOG、GOOGL、ARM、BABA、TSM、BRK-B、SPY、QQQ、SOXL、KWEB、GLD、TLT、IBIT 共 17 条**待审核占位样例**。用户给出的分类语义只是审核起点；没有独立核实的名称、MIC、地区等保留为空，上市状态为 `unknown`。维护者可以补齐资料、审核和新增证券，当前内容及审核状态以 `data/` 源记录为准，不要求一直保持初始化状态。
+初始化包含 NVDA、CRWV、MSTR、TSLA、GOOG、GOOGL、ARM、BABA、TSM、BRK-B、SPY、QQQ、SOXL、KWEB、GLD、TLT、IBIT 共 17 条占位样例；后续从固定版本 FinanceDatabase 增补了 MSFT、META、PLTR、ORCL、AMZN、AMD、AVGO、INTC、QCOM、MU、XOM、CVX、COP、SLB、EOG、COIN、HOOD、RIOT、CLSK、IREN 共 20 条待审核行业记录。用户给出的分类语义只是审核起点；没有独立核实的名称、MIC、地区等保留为空，上市状态为 `unknown`。维护者可以补齐资料、审核和新增证券，当前内容及审核状态以 `data/` 源记录为准，不要求一直保持初始化状态。
 
-公司行业采用独立的 FinanceDatabase **板块 → 行业组 → 行业** 体系，初始词表包含 11 / 24 / 69 个节点，10 只股票记录了固定版本的上游分类与来源，导入时均待人工审核。GOOG / GOOGL 的上游电信分类标有疑点，不将导入视为事实确认。保留旧 Yahoo 体系；ETF 不套用公司行业。[完整中英分类明细与股票映射](docs/industry-classification.md)。
+公司行业采用独立的 FinanceDatabase **板块 → 行业组 → 行业** 体系，初始词表包含 11 / 24 / 69 个节点，30 只股票记录了固定版本的上游分类与来源，导入时均待人工审核。GOOG / GOOGL / META 的上游电信分类标有疑点，不将导入视为事实确认。保留旧 Yahoo 体系；ETF 不套用公司行业。[完整中英分类明细与股票映射](docs/industry-classification.md)。
 
 不再设置单选主主题。此前 12 个主题已与 3 个标签合为 15 个标签，原 ID、显示名、别名和证券关联保留；标签可多选，也可不填。此次仅作结构迁移，不撤销已有人工审核。后续可继续维护标签，不以初始数量限制数据。
 
