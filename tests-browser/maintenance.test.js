@@ -86,10 +86,18 @@ async function detailAfterJson(page) {
 
 test('search/filter works at desktop and narrow mobile widths without an external service', async (t) => {
   const page = await pageForTest(t);
+  assert.equal(await page.getByRole('table').count(), 1);
+  assert.deepEqual(await page.getByRole('columnheader').allTextContents(),
+    ['证券代码', '名称', 'MIC', '类型', '行业', '标签', '审核状态', '操作']);
+  assert.equal(await page.locator('section[aria-label="编辑详情"]').getAttribute('class'), 'panel editor-drawer');
   assert.match(await page.locator('.status-line').textContent(), /17 条/);
   await page.getByLabel('搜索', { exact: true }).fill('BRK-B');
   assert.equal(await page.locator('aside .record-button').count(), 1);
   assert.match(await page.locator('aside .record-button').textContent(), /BRK.B/);
+  await page.locator('aside .record-button').click();
+  assert.match(await page.locator('section[aria-label="编辑详情"]').getAttribute('class'), /\bopen\b/);
+  await page.getByRole('button', { name: '关闭编辑面板', exact: true }).last().click();
+  assert.doesNotMatch(await page.locator('section[aria-label="编辑详情"]').getAttribute('class'), /\bopen\b/);
   await page.getByLabel('搜索', { exact: true }).fill('');
   await page.getByLabel('证券类型', { exact: true }).selectOption('etf');
   assert.equal(await page.locator('aside .record-button').count(), 7);
@@ -261,6 +269,7 @@ test('direct PR submission is the only persistence path', async (t) => {
   await page.getByRole('button', { name: /^NVDA ·/ }).click();
   await page.getByLabel('英文名称', { exact: true }).fill('Direct PR flow fixture');
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
+  await page.getByRole('button', { name: '关闭编辑面板', exact: true }).last().click();
   await page.getByText('直接提交 GitHub PR', { exact: true }).click();
   assert.equal(await page.getByLabel('新分支名', { exact: true }).inputValue() !== '', true);
   assert.equal(await page.getByLabel('提交信息（commit message）', { exact: true }).inputValue() !== '', true);
@@ -499,6 +508,7 @@ test('industry vocabulary is browsable in three levels and group edits flag revi
   const savedVocabulary = await detailAfterJson(page);
   assert.deepEqual(savedVocabulary, vocabulary);
   assert.match(await page.getByText('data/instruments/ins-000001.json', { exact: true }).textContent(), /ins-000001/);
+  await page.getByRole('button', { name: '关闭编辑面板', exact: true }).last().click();
   await page.getByRole('button', { name: '＋ 新增词条', exact: true }).click();
   const newId = page.getByLabel('稳定 ID（新建后不可修改）', { exact: true });
   assert.equal(await newId.isEditable(), true);

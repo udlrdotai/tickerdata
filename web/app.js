@@ -1,3 +1,4 @@
+import 'bootstrap/dist/css/bootstrap.min.css';
 import { validateDataset, validateReviewTransitions } from '../src/validation.js';
 import { emptyInstrument, emptyEtf, stableStringify, normalizeSymbol } from '../src/model.js';
 import { clone, matchesRecord, prepareRecord, references, applyVocabulary, mergeVocabulary, changedFiles, githubLinks, downgradeRelatedReviews, industryChoices, changeIndustrySelection } from './editor-model.js';
@@ -6,7 +7,7 @@ import { createPullRequestFromDraft, defaultPrDraft, getGitHubSession, logoutGit
 const app = document.querySelector('#app');
 const state = {
   initial: null, dataset: null, config: null, mode: 'records', selected: null,
-  vocabKind: 'tags', vocabId: null, dirty: false,
+  vocabKind: 'tags', vocabId: null, vocabQuery: '', dirty: false,
   filters: { query: '', type: '', tag: '', review: '' },
   pr: { session: { enabled: false, authenticated: false, user: null }, branch: '', commitMessage: '', title: '', body: '', confirm: false, submitting: false, url: '', fingerprint: '' },
 };
@@ -27,7 +28,8 @@ function node(tag, text, className) {
 }
 
 function button(text, action, className = '') {
-  const element = node('button', text, className);
+  const variant = className === 'primary' ? 'btn-primary' : className === 'danger' ? 'btn-outline-danger' : 'btn-outline-secondary';
+  const element = node('button', text, `btn btn-sm ${variant} ${className}`.trim());
   element.type = 'button';
   element.addEventListener('click', () => attempt(action));
   return element;
@@ -62,6 +64,21 @@ function navigate(action) {
   draftRecord = null;
   action();
   render();
+}
+
+function closeEditor() {
+  navigate(() => {
+    if (state.mode === 'records') state.selected = null;
+    else state.vocabId = null;
+  });
+}
+
+function drawerHeader(title) {
+  const header = node('div', null, 'drawer-header');
+  const close = button('关闭', closeEditor, 'drawer-close');
+  close.setAttribute('aria-label', '关闭编辑面板');
+  header.append(node('h2', title), close);
+  return header;
 }
 
 function validate(candidate) {
@@ -377,22 +394,37 @@ function render() {
   messages.tabIndex = -1;
   app.append(messages);
   renderSubmission(app);
-  const layout = node('div', null, 'layout toolbar-layout');
-  const aside = node('aside', null, 'panel');
-  detail = node('section', null, 'panel');
+  const layout = node('div', null, 'workbench');
+  const aside = node('aside', null, 'panel catalog-panel');
+  const backdrop = button('', closeEditor, 'drawer-backdrop');
+  backdrop.setAttribute('aria-label', '关闭编辑面板');
+  detail = node('section', null, 'panel editor-drawer');
   detail.setAttribute('aria-label', '编辑详情');
-  layout.append(aside, detail);
+  layout.append(aside, backdrop, detail);
   app.append(node('hr'), layout);
+  let drawerOpen = false;
   if (state.mode === 'records') {
     renderRecordSidebar(aside);
     const record = draftRecord ?? state.dataset.instruments.find((item) => item.id === state.selected);
-    if (record) renderRecord(record);
-    else detail.append(node('h2', '选择证券开始维护'), node('p', '从左侧搜索并选择记录，或新增证券。待审核样例不能被视为已经确认的交易分类。', 'empty'));
-  } else renderVocabulary(aside);
+    if (record) {
+      renderRecord(record);
+      drawerOpen = true;
+    }
+  } else {
+    renderVocabulary(aside);
+    drawerOpen = state.vocabId !== null;
+  }
+  detail.classList.toggle('open', drawerOpen);
+  backdrop.classList.toggle('open', drawerOpen);
+  document.body.classList.toggle('drawer-open', drawerOpen);
 }
 
 function renderRecordSidebar(parent) {
-  parent.append(node('h2', '证券目录'));
+  const heading = node('div', null, 'catalog-heading');
+  heading.append(node('div', null, 'catalog-title'));
+  heading.firstElementChild.append(node('p', '数据查询', 'eyebrow'), node('h2', '证券目录'));
+  heading.append(node('p', '点击证券代码打开编辑抽屉；筛选结果始终保留在当前页面。', 'muted'));
+  parent.append(heading);
   const filters = node('div', null, 'filters');
   const search = node('input');
   search.type = 'search';
@@ -421,30 +453,64 @@ function renderRecordSidebar(parent) {
 function renderRecordList() {
   list.replaceChildren();
   const records = state.dataset.instruments.filter((record) => matchesRecord(record, state.filters));
-  list.append(node('p', `${records.length} / ${state.dataset.instruments.length} 条记录`, 'muted'));
-  const items = node('ul', null, 'record-list');
+  const summary = node('div', null, 'table-summary');
+  summary.append(node('strong', `${records.length} 条结果`), node('span', `共 ${state.dataset.instruments.length} 条证券`, 'muted'));
+  list.append(summary);
+  const shell = node('div', null, 'table-shell');
+  const table = node('table', null, 'maintenance-table');
+  const head = node('thead');
+  const headings = node('tr');
+  for (const title of ['证券代码', '名称', 'MIC', '类型', '行业', '标签', '审核状态', '操作']) headings.append(node('th', title));
+  head.append(headings);
+  const body = node('tbody');
   const changed = new Set(changedFiles(state.initial, state.dataset).map((file) => file.path));
   for (const record of records) {
-    const item = node('li');
-    const choose = button('', () => navigate(() => { state.selected = record.id; }), 'record-button');
+    const row = node('tr');
+    if (state.selected === record.id && !draftRecord) row.classList.add('selected');
+    const symbol = node('td');
+    const choose = button(`${record.symbol.canonical} · ${record.symbol.mic ?? 'MIC 未填写'}`, () => navigate(() => { state.selected = record.id; }), 'record-button');
     choose.setAttribute('aria-pressed', String(state.selected === record.id && !draftRecord));
-    choose.append(node('strong', `${record.symbol.canonical} · ${record.symbol.mic ?? 'MIC 未填写'}`), node('small', record.name.zh || record.name.en || '名称待补充'));
-    const badges = node('span', null, 'badges');
-    badges.append(node('span', typeNames[record.security_type], 'badge'), node('span', reviewNames[record.review.status], `badge ${record.review.status}`));
-    if (changed.has(`data/instruments/${record.id}.json`)) badges.append(node('span', '内存草稿', 'badge draft'));
-    choose.append(badges);
-    item.append(choose);
-    items.append(item);
+    symbol.append(choose);
+    if (changed.has(`data/instruments/${record.id}.json`)) symbol.append(node('span', '草稿', 'badge draft'));
+    const industryId = record.industry?.industry_id;
+    const industrySystem = state.dataset.vocabulary.industry_systems
+      .find((system) => system.id === record.industry?.system_id);
+    const industryName = industrySystem?.industries.find((item) => item.id === industryId)?.name_zh;
+    const tags = record.classification.tag_ids
+      .map((id) => state.dataset.vocabulary.tags.find((item) => item.id === id)?.name_zh ?? id);
+    const status = node('td');
+    status.append(node('span', reviewNames[record.review.status], `badge ${record.review.status}`));
+    const action = node('td');
+    action.append(button('编辑', () => navigate(() => { state.selected = record.id; }), 'table-action'));
+    for (const value of [
+      symbol,
+      node('td', record.name.zh || record.name.en || '名称待补充'),
+      node('td', record.symbol.mic ?? '—'),
+      node('td', typeNames[record.security_type]),
+      node('td', industryId ? industryName ?? industryId : '—'),
+      node('td', tags.join('、') || '—'),
+      status,
+      action,
+    ]) row.append(value);
+    body.append(row);
   }
-  if (!records.length) items.append(node('li', '没有匹配记录。试试清除筛选条件。', 'empty'));
-  list.append(items);
+  if (!records.length) {
+    const empty = node('td', '没有匹配记录。请调整或清除筛选条件。', 'empty');
+    empty.colSpan = 8;
+    const row = node('tr');
+    row.append(empty);
+    body.append(row);
+  }
+  table.append(head, body);
+  shell.append(table);
+  list.append(shell);
 }
 
 function renderRecord(record) {
   detail.replaceChildren();
   const working = clone(record);
   const before = state.initial.instruments.find((item) => item.id === record.id);
-  detail.append(node('h2', `${before ? '编辑' : '新增'}证券 · ${record.symbol.canonical || '未填写代码'}`));
+  detail.append(drawerHeader(`${before ? '编辑' : '新增'}证券 · ${record.symbol.canonical || '未填写代码'}`));
   detail.append(node('p', `稳定内部 ID：${record.id}`, 'muted'));
   const status = node('p', state.dirty ? '表单有未保存修改 · 尚未校验，未进入内存草稿' : '当前显示已加载内容 / 已保存内存草稿；编辑后请校验保存。', 'warning');
   status.id = 'form-state';
@@ -684,28 +750,89 @@ function renderIndustryTree(parent, system) {
 }
 
 function renderVocabulary(sidebar) {
-  sidebar.append(node('h2', '词表维护'));
+  const heading = node('div', null, 'catalog-heading');
+  const title = node('div', null, 'catalog-title');
+  title.append(node('p', '数据查询', 'eyebrow'), node('h2', '词表维护'));
+  heading.append(title, node('p', '集中查询标签与行业体系，点击词条后在右侧抽屉维护。', 'muted'));
+  sidebar.append(heading);
+  const toolbar = node('div', null, 'vocabulary-toolbar');
   const tabs = node('div', null, 'actions');
   for (const [kind, label] of [['tags', '标签'], ['industry_systems', '行业体系']]) {
     const tab = button(label, () => navigate(() => { state.vocabKind = kind; state.vocabId = null; }));
     tab.setAttribute('aria-pressed', String(state.vocabKind === kind));
     tabs.append(tab);
   }
-  sidebar.append(tabs);
+  toolbar.append(tabs);
+  toolbar.append(button('＋ 新增词条', () => navigate(() => { state.vocabId = '__new'; }), 'primary'));
+  sidebar.append(toolbar);
+  const search = node('input');
+  search.type = 'search';
+  search.placeholder = '搜索名称、稳定 ID、别名或说明';
+  search.value = state.vocabQuery;
+  search.addEventListener('input', () => {
+    state.vocabQuery = search.value;
+    const query = state.vocabQuery.trim().toLocaleLowerCase();
+    let count = 0;
+    for (const row of sidebar.querySelectorAll('tbody tr[data-search]')) {
+      const visible = !query || row.dataset.search.includes(query);
+      row.hidden = !visible;
+      if (visible) count += 1;
+    }
+    sidebar.querySelector('.table-summary strong').textContent = `${count} 条结果`;
+    sidebar.querySelector('.no-vocabulary-results').hidden = count > 0;
+  });
+  const searchField = node('div', null, 'vocabulary-search');
+  field(searchField, '搜索词表', search);
+  sidebar.append(searchField);
   const kind = state.vocabKind;
   const labels = state.dataset.vocabulary[kind];
-  const items = node('ul', null, 'record-list');
+  const query = state.vocabQuery.trim().toLocaleLowerCase();
+  const visibleLabels = labels.filter((label) =>
+    !query || [label.id, label.name_zh, label.description, ...label.aliases].some((value) => value?.toLocaleLowerCase().includes(query)));
+  const summary = node('div', null, 'table-summary');
+  summary.append(node('strong', `${visibleLabels.length} 条结果`), node('span', `共 ${labels.length} 条词条`, 'muted'));
+  sidebar.append(summary);
+  const shell = node('div', null, 'table-shell');
+  const table = node('table', null, 'maintenance-table vocabulary-table');
+  const head = node('thead');
+  const headingRow = node('tr');
+  for (const text of ['中文名称', '稳定 ID', '别名', '引用记录', '操作']) headingRow.append(node('th', text));
+  head.append(headingRow);
+  const body = node('tbody');
   for (const label of labels) {
-    const item = node('li');
-    const choose = button('', () => navigate(() => { state.vocabId = label.id; }), 'record-button');
+    const row = node('tr');
+    row.dataset.search = [label.id, label.name_zh, label.description, ...label.aliases]
+      .filter(Boolean).join(' ').toLocaleLowerCase();
+    row.hidden = Boolean(query) && !row.dataset.search.includes(query);
+    if (state.vocabId === label.id) row.classList.add('selected');
+    const name = node('td');
+    const choose = button(`${label.name_zh} · ${label.id}`, () => navigate(() => { state.vocabId = label.id; }), 'record-button');
     choose.setAttribute('aria-pressed', String(state.vocabId === label.id));
-    choose.append(node('strong', label.name_zh), node('small', `${label.id} · ${references(state.dataset, kind, label.id).length} 条引用`));
-    item.append(choose);
-    items.append(item);
+    name.append(choose);
+    const action = node('td');
+    action.append(button('编辑', () => navigate(() => { state.vocabId = label.id; }), 'table-action'));
+    row.append(
+      name,
+      node('td', label.id),
+      node('td', label.aliases.join('、') || '—'),
+      node('td', `${references(state.dataset, kind, label.id).length} 条`),
+      action,
+    );
+    body.append(row);
   }
-  sidebar.append(items);
-  sidebar.append(button('＋ 新增词条', () => navigate(() => { state.vocabId = '__new'; }), 'primary'));
-  detail.append(node('h2', '标签与标准行业词表'));
+  {
+    const empty = node('td', '没有匹配词条。请调整搜索条件。', 'empty');
+    empty.colSpan = 5;
+    const row = node('tr', null, 'no-vocabulary-results');
+    row.hidden = visibleLabels.length > 0;
+    row.append(empty);
+    body.append(row);
+  }
+  table.append(head, body);
+  shell.append(table);
+  sidebar.append(shell);
+  if (state.vocabId === null) return;
+  detail.append(drawerHeader('标签与标准行业词表'));
   detail.append(node('p', '重命名只修改显示名称，不更换稳定 ID。被引用的词条不可直接删除；标签可显式合并 ID。词义、描述或别名变更会将引用记录标为需复核；依赖这些证券的已审核关联记录也将递归转为需复核，并全部列入变更清单。行业子项在高级 JSON 中维护，所有引用同样参与校验。', 'notice'));
   const formState = node('p', '词表修改同样只保存为内存草稿。', 'warning');
   formState.id = 'form-state';
@@ -718,7 +845,6 @@ function renderVocabulary(sidebar) {
     if (kind === 'industry_systems') renderIndustryTree(detail, label);
     renderLabelForm(detail, kind, label, labels.some((item) => item.id === label.id));
   }
-  else detail.append(node('p', '选择左侧词条编辑，或新增词条；也可使用下方完整词表 JSON 编辑器。', 'empty'));
   const advanced = node('details');
   advanced.append(node('summary', '高级：编辑完整词表 JSON（含行业体系 / 板块 / 行业组 / 行业）'));
   const json = input(advanced, '完整 vocabulary.json', stableStringify(state.dataset.vocabulary), '此编辑器与上方结构化编辑器互斥：请只修改其中一个后保存。整体校验通过前不会替换草稿。被引用 ID 的删除会被拒绝。', true);
@@ -838,6 +964,10 @@ window.addEventListener('beforeunload', (event) => {
     event.preventDefault();
     event.returnValue = '';
   }
+});
+
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && detail?.classList.contains('open')) closeEditor();
 });
 
 async function start() {
