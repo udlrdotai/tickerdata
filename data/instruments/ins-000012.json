@@ -5,16 +5,20 @@
     ]
   },
   "etf": {
-    "asset_class": null,
-    "description": null,
-    "direction": null,
-    "exposure": [],
-    "fund_category": null,
-    "leverage_factor": null,
-    "objective": "纳斯达克100指数 ETF",
-    "reset_period": null,
+    "objective": "Seek to track, before fees and expenses, the investment results of the Nasdaq-100 Index.",
+    "asset_class": "equity",
+    "exposure": [
+      "Nasdaq-100 Index",
+      "large Nasdaq-listed non-financial companies",
+      "US large-cap growth equities"
+    ],
+    "leverage_factor": 1,
+    "direction": "long",
+    "reset_period": "none",
+    "fund_category": "US large-cap growth / Nasdaq-100 index",
+    "description": "跟踪纳斯达克100指数，集中投资纳斯达克上市的大型非金融及创新型企业，不使用目标杠杆。",
     "source_ids": [
-      "manual-example"
+      "official-product"
     ]
   },
   "id": "ins-000012",
@@ -26,20 +30,20 @@
     "system_id": null
   },
   "issuer": {
-    "country": null,
+    "country": "US",
     "id": null
   },
-  "listing_status": "unknown",
+  "listing_status": "active",
   "name": {
-    "en": null,
-    "zh": null
+    "en": "Invesco QQQ Trust, Series 1",
+    "zh": "景顺纳斯达克100 ETF"
   },
-  "notes": "初始化占位样例；仅采用用户提供的示例语义，未经独立核实。名称、MIC、上市状态及未核实属性留空或 unknown。请逐项核实后再填写审核人和时间；不可直接作为已审核事实。内部 ID 是本项目分配的标识，不是官方证券代码。",
+  "notes": "已于 2026-09-15 根据交易所页面和基金发行人官方产品页核实证券身份、上市状态及 ETF 产品属性。",
   "related_instrument_ids": [],
   "review": {
-    "reviewed_at": null,
-    "reviewer": null,
-    "status": "pending"
+    "reviewed_at": "2026-09-14T20:07:45.048Z",
+    "reviewer": "gankthisway",
+    "status": "reviewed"
   },
   "schema_version": "4.0.0",
   "security_type": "etf",
@@ -53,13 +57,36 @@
       "kind": "manual",
       "label": "用户需求中的分类语义示例；仅为待审核起点，不是发行人或交易所证据。",
       "url": null
+    },
+    {
+      "accessed_at": "2026-09-14T20:07:45Z",
+      "fields": [
+        "/name",
+        "/symbol",
+        "/issuer",
+        "/listing_status"
+      ],
+      "id": "official-listing",
+      "kind": "exchange",
+      "label": "Nasdaq — Invesco QQQ Trust, Series 1 (QQQ)",
+      "url": "https://www.nasdaq.com/market-activity/etf/qqq"
+    },
+    {
+      "accessed_at": "2026-09-14T20:07:45Z",
+      "fields": [
+        "/etf"
+      ],
+      "id": "official-product",
+      "kind": "issuer",
+      "label": "Invesco — Invesco QQQ Trust, Series 1",
+      "url": "https://www.invesco.com/us/en/financial-products/etfs/invesco-qqq-trust-series-1.html"
     }
   ],
   "symbol": {
     "aliases": [],
     "canonical": "QQQ",
     "history": [],
-    "mic": null,
+    "mic": "XNAS",
     "original": "QQQ"
   }
 }

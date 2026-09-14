@@ -6,16 +6,20 @@
     ]
   },
   "etf": {
-    "asset_class": null,
-    "description": null,
-    "direction": null,
-    "exposure": [],
-    "fund_category": null,
-    "leverage_factor": null,
-    "objective": "比特币 ETF",
-    "reset_period": null,
+    "objective": "Seek to reflect generally the performance of the price of bitcoin.",
+    "asset_class": "digital_asset",
+    "exposure": [
+      "spot bitcoin",
+      "custodied bitcoin",
+      "bitcoin price less trust expenses"
+    ],
+    "leverage_factor": 1,
+    "direction": "long",
+    "reset_period": "none",
+    "fund_category": "spot bitcoin trust",
+    "description": "通过特拉华法定信托持有托管比特币，使份额总体反映比特币现货价格；不是投资区块链公司股票的传统股票ETF。",
     "source_ids": [
-      "manual-example"
+      "official-product"
     ]
   },
   "id": "ins-000017",
@@ -27,20 +31,20 @@
     "system_id": null
   },
   "issuer": {
-    "country": null,
+    "country": "US",
     "id": null
   },
-  "listing_status": "unknown",
+  "listing_status": "active",
   "name": {
-    "en": null,
-    "zh": null
+    "en": "iShares Bitcoin Trust ETF",
+    "zh": "iShares比特币信托ETF"
   },
-  "notes": "初始化占位样例；仅采用用户提供的示例语义，未经独立核实。名称、MIC、上市状态及未核实属性留空或 unknown。请逐项核实后再填写审核人和时间；不可直接作为已审核事实。内部 ID 是本项目分配的标识，不是官方证券代码。",
+  "notes": "已于 2026-09-15 根据交易所页面和基金发行人官方产品页核实证券身份、上市状态及 ETF 产品属性。",
   "related_instrument_ids": [],
   "review": {
-    "reviewed_at": null,
-    "reviewer": null,
-    "status": "pending"
+    "reviewed_at": "2026-09-14T20:07:45.048Z",
+    "reviewer": "gankthisway",
+    "status": "reviewed"
   },
   "schema_version": "4.0.0",
   "security_type": "etf",
@@ -54,13 +58,36 @@
       "kind": "manual",
       "label": "用户需求中的分类语义示例；仅为待审核起点，不是发行人或交易所证据。",
       "url": null
+    },
+    {
+      "accessed_at": "2026-09-14T20:07:45Z",
+      "fields": [
+        "/name",
+        "/symbol",
+        "/issuer",
+        "/listing_status"
+      ],
+      "id": "official-listing",
+      "kind": "exchange",
+      "label": "Nasdaq — iShares Bitcoin Trust ETF (IBIT)",
+      "url": "https://www.nasdaq.com/market-activity/etf/ibit"
+    },
+    {
+      "accessed_at": "2026-09-14T20:07:45Z",
+      "fields": [
+        "/etf"
+      ],
+      "id": "official-product",
+      "kind": "issuer",
+      "label": "iShares — iShares Bitcoin Trust ETF",
+      "url": "https://www.ishares.com/us/products/333011/ishares-bitcoin-trust"
     }
   ],
   "symbol": {
     "aliases": [],
     "canonical": "IBIT",
     "history": [],
-    "mic": null,
+    "mic": "XNAS",
     "original": "IBIT"
   }
 }
