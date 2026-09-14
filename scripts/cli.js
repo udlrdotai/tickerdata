@@ -103,7 +103,7 @@ async function buildSite(dataset) {
   await writeFile(resolve(dist, 'release-info.json'), stableStringify(release.manifest));
   await cp(resolve(root, 'schemas'), resolve(dist, 'schemas'), { recursive: true });
   const notices = [];
-  for (const dependency of ['ajv', 'ajv-formats', 'fast-deep-equal']) {
+  for (const dependency of ['ajv', 'ajv-formats', 'bootstrap', 'fast-deep-equal']) {
     notices.push(`${dependency}\n${await readFile(resolve(root, 'node_modules', dependency, 'LICENSE'), 'utf8')}`);
   }
   await writeFile(resolve(dist, 'THIRD_PARTY_NOTICES.txt'), notices.join('\n\n'));
