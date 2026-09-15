@@ -1170,6 +1170,22 @@
       "description": "",
       "id": "neocloud",
       "name_zh": "新型云"
+    },
+    {
+      "aliases": [
+        "美国中型股"
+      ],
+      "description": "",
+      "id": "us-middle-cap",
+      "name_zh": "美国中盘股"
+    },
+    {
+      "aliases": [
+        "美国小型股"
+      ],
+      "description": "",
+      "id": "us-small-cap",
+      "name_zh": "美国小盘股"
     }
   ]
 }
