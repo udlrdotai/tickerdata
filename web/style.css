@@ -58,8 +58,10 @@ a { color: #075db0; overflow-wrap: anywhere; }
 .catalog-panel { min-height: 35rem; padding: 0; overflow: hidden; }
 .catalog-heading { display: flex; align-items: end; justify-content: space-between; gap: 1rem; padding: 1rem 1.1rem .8rem; border-bottom: 1px solid var(--border); }
 .catalog-heading > p { margin: 0; text-align: right; }
+.catalog-heading-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: .75rem; }
+.catalog-heading-actions > p { margin: 0; text-align: right; }
 .filters { display: grid; grid-template-columns: minmax(20rem, 2fr) repeat(3, minmax(9rem, 1fr)); gap: .75rem; padding: 1rem 1.1rem; background: var(--surface-muted); border-bottom: 1px solid var(--border); }
-.vocabulary-toolbar { justify-content: space-between; padding: 1rem 1.1rem .5rem; }
+.vocabulary-toolbar { justify-content: flex-end; padding: 1rem 1.1rem .5rem; }
 .vocabulary-search { padding: .5rem 1.1rem 1rem; border-bottom: 1px solid var(--border); }
 .field { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
 .field > label, .field-label { font-size: .85rem; font-weight: 600; }
@@ -192,6 +194,8 @@ summary { cursor: pointer; font-weight: 600; }
   main { padding: .75rem; }
   .catalog-heading { display: block; }
   .catalog-heading > p { margin-top: .35rem; text-align: left; }
+  .catalog-heading-actions { justify-content: flex-start; margin-top: .5rem; }
+  .catalog-heading-actions > p { text-align: left; }
   .filters { grid-template-columns: 1fr; }
   .filters > :first-child { grid-column: auto; }
 }
