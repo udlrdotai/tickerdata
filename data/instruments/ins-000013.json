@@ -42,9 +42,9 @@
   "notes": "已于 2026-09-15 根据交易所页面和基金发行人官方产品页核实证券身份、上市状态及 ETF 产品属性。",
   "related_instrument_ids": [],
   "review": {
-    "reviewed_at": "2026-09-14T20:07:45.048Z",
+    "reviewed_at": "2026-09-15T08:44:26.415Z",
     "reviewer": "gankthisway",
-    "status": "needs_review"
+    "status": "reviewed"
   },
   "schema_version": "4.0.0",
   "security_type": "etf",
