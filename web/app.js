@@ -806,7 +806,7 @@ function renderVocabulary(sidebar) {
     row.hidden = Boolean(query) && !row.dataset.search.includes(query);
     if (state.vocabId === label.id) row.classList.add('selected');
     const name = node('td');
-    const choose = button(`${label.name_zh} · ${label.id}`, () => navigate(() => { state.vocabId = label.id; }), 'record-button');
+    const choose = button(label.name_zh, () => navigate(() => { state.vocabId = label.id; }), 'record-button');
     choose.setAttribute('aria-pressed', String(state.vocabId === label.id));
     name.append(choose);
     const action = node('td');

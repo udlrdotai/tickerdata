@@ -113,6 +113,12 @@ async function detailAfterJson(page) {
   return JSON.parse(await page.locator('section[aria-label="编辑详情"] .diff pre').last().textContent());
 }
 
+function vocabularyRow(page, id) {
+  return page.locator('aside tbody tr').filter({
+    has: page.getByRole('cell', { name: id, exact: true }),
+  });
+}
+
 test('search/filter works at desktop and narrow mobile widths without an external service', async (t) => {
   const page = await pageForTest(t);
   assert.equal(await page.getByRole('table').count(), 1);
@@ -536,7 +542,7 @@ test('industry vocabulary is browsable in three levels and group edits flag revi
   assert.match(await page.locator('#messages').textContent(), /已通过校验/);
   await page.getByRole('button', { name: '标签 / 行业词表', exact: true }).click();
   await page.getByRole('button', { name: '行业体系', exact: true }).click();
-  await page.locator('aside .record-button').filter({ hasText: 'financedatabase' }).click();
+  await vocabularyRow(page, 'financedatabase').locator('.record-button').click();
   assert.match(await page.locator('.industry-tree > summary').textContent(), /11 板块 \/ 24 行业组 \/ 69 行业/);
   await page.locator('.industry-tree > details > summary').first().click();
   await page.locator('.industry-tree > details').first().locator('details > summary').first().click();
@@ -576,7 +582,11 @@ test('industry vocabulary is browsable in three levels and group edits flag revi
 test('tag rename, referenced deletion and atomic merge stay safe in one PR draft', async (t) => {
   const page = await pageForTest(t);
   await page.getByRole('button', { name: '标签 / 行业词表', exact: true }).click();
-  await page.locator('aside .record-button').filter({ hasText: 'semiconductor-ai' }).click();
+  assert.deepEqual(
+    await vocabularyRow(page, 'semiconductor-ai').locator('.record-button').allTextContents(),
+    ['半导体/AI'],
+  );
+  await vocabularyRow(page, 'semiconductor-ai').locator('.record-button').click();
   await page.getByLabel('中文显示名称', { exact: true }).fill('合成测试标签');
   await page.getByRole('button', { name: '校验并保存词条草稿', exact: true }).click();
   const renamed = await detailAfterJson(page);
@@ -591,7 +601,7 @@ test('tag rename, referenced deletion and atomic merge stay safe in one PR draft
   assert.ok(merged.tags.find((tag) => tag.id === 'ai-cloud').aliases.includes('合成测试标签'));
   assert.equal(await page.getByText('data/instruments/ins-000001.json', { exact: true }).count(), 1);
   assert.equal(await page.getByText('data/instruments/ins-000002.json', { exact: true }).count(), 1);
-  await page.locator('aside .record-button').filter({ hasText: 'satellite-communication' }).click();
+  await vocabularyRow(page, 'satellite-communication').locator('.record-button').click();
   await page.getByRole('button', { name: '删除未被引用词条', exact: true }).click();
   const deleted = await detailAfterJson(page);
   assert.equal(deleted.tags.some((tag) => tag.id === 'satellite-communication'), false);
