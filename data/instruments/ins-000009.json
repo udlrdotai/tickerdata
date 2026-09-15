@@ -1,7 +1,8 @@
 {
   "classification": {
     "tag_ids": [
-      "semiconductor-foundry"
+      "semiconductor-foundry",
+      "us-large-cap"
     ]
   },
   "etf": null,
@@ -27,9 +28,9 @@
   "notes": "已于 2026-09-15 根据最新 SEC 定期报告核实证券名称、交易代码、上市市场、发行人注册地及上市状态。",
   "related_instrument_ids": [],
   "review": {
-    "reviewed_at": "2026-09-14T20:07:45.048Z",
+    "reviewed_at": "2026-09-15T08:51:21.852Z",
     "reviewer": "gankthisway",
-    "status": "needs_review"
+    "status": "reviewed"
   },
   "schema_version": "4.0.0",
   "security_type": "stock",
