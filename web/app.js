@@ -376,16 +376,23 @@ function render() {
   app.append(node('p', `已加载源数据：${state.dataset.instruments.length} 条（不代表全部已审核）。实际发布状态：本页未核验；已审核不等于已发布。Pages 配置：${state.config?.pages_enabled ? '已启用' : '未启用或未配置'}。`, 'status-line'));
   const toolbar = node('nav', null, 'toolbar');
   toolbar.setAttribute('aria-label', '维护功能');
-  for (const [mode, title] of [['records', '证券记录'], ['vocabulary', '标签 / 行业词表']]) {
-    const tab = button(title, () => navigate(() => { state.mode = mode; }));
-    tab.setAttribute('aria-pressed', String(state.mode === mode));
+  for (const [mode, vocabKind, title] of [
+    ['records', null, '证券记录'],
+    ['vocabulary', 'tags', '标签词表'],
+    ['vocabulary', 'industry_systems', '行业词表'],
+  ]) {
+    const tab = button(title, () => navigate(() => {
+      state.mode = mode;
+      if (vocabKind) {
+        state.vocabKind = vocabKind;
+        state.vocabId = null;
+      }
+    }));
+    tab.setAttribute('aria-pressed', String(
+      state.mode === mode && (mode === 'records' || state.vocabKind === vocabKind),
+    ));
     toolbar.append(tab);
   }
-  toolbar.append(button('＋ 新增证券', () => navigate(() => {
-    state.mode = 'records';
-    state.selected = null;
-    draftRecord = emptyInstrument(`ins-${crypto.randomUUID()}`);
-  }), 'primary'));
   app.append(toolbar);
   messages = node('div');
   messages.id = 'messages';
@@ -423,7 +430,15 @@ function renderRecordSidebar(parent) {
   const heading = node('div', null, 'catalog-heading');
   heading.append(node('div', null, 'catalog-title'));
   heading.firstElementChild.append(node('p', '数据查询', 'eyebrow'), node('h2', '证券目录'));
-  heading.append(node('p', '点击证券代码打开编辑抽屉；筛选结果始终保留在当前页面。', 'muted'));
+  const actions = node('div', null, 'catalog-heading-actions');
+  actions.append(
+    node('p', '点击证券代码打开编辑抽屉；筛选结果始终保留在当前页面。', 'muted'),
+    button('＋ 新增证券', () => navigate(() => {
+      state.selected = null;
+      draftRecord = emptyInstrument(`ins-${crypto.randomUUID()}`);
+    }), 'primary'),
+  );
+  heading.append(actions);
   parent.append(heading);
   const filters = node('div', null, 'filters');
   const search = node('input');
@@ -750,19 +765,16 @@ function renderIndustryTree(parent, system) {
 }
 
 function renderVocabulary(sidebar) {
+  const kind = state.vocabKind;
+  const isTags = kind === 'tags';
   const heading = node('div', null, 'catalog-heading');
   const title = node('div', null, 'catalog-title');
-  title.append(node('p', '数据查询', 'eyebrow'), node('h2', '词表维护'));
-  heading.append(title, node('p', '集中查询标签与行业体系，点击词条后在右侧抽屉维护。', 'muted'));
+  title.append(node('p', '数据查询', 'eyebrow'), node('h2', isTags ? '标签词表' : '行业词表'));
+  heading.append(title, node('p', isTags
+    ? '集中查询标签，点击词条后在右侧抽屉维护。'
+    : '集中查询行业体系，点击词条后在右侧抽屉维护。', 'muted'));
   sidebar.append(heading);
   const toolbar = node('div', null, 'vocabulary-toolbar');
-  const tabs = node('div', null, 'actions');
-  for (const [kind, label] of [['tags', '标签'], ['industry_systems', '行业体系']]) {
-    const tab = button(label, () => navigate(() => { state.vocabKind = kind; state.vocabId = null; }));
-    tab.setAttribute('aria-pressed', String(state.vocabKind === kind));
-    tabs.append(tab);
-  }
-  toolbar.append(tabs);
   toolbar.append(button('＋ 新增词条', () => navigate(() => { state.vocabId = '__new'; }), 'primary'));
   sidebar.append(toolbar);
   const search = node('input');
@@ -784,7 +796,6 @@ function renderVocabulary(sidebar) {
   const searchField = node('div', null, 'vocabulary-search');
   field(searchField, '搜索词表', search);
   sidebar.append(searchField);
-  const kind = state.vocabKind;
   const labels = state.dataset.vocabulary[kind];
   const query = state.vocabQuery.trim().toLocaleLowerCase();
   const visibleLabels = labels.filter((label) =>

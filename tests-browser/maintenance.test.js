@@ -158,6 +158,11 @@ test('public catalog shows only reviewed release records and supports filters', 
 test('only tags and industry remain in the UI and multi-select tags save to the PR draft', async (t) => {
   const source = createDatasetFixture();
   const page = await pageForTest(t, {}, source);
+  assert.deepEqual(
+    await page.getByRole('navigation', { name: '维护功能' }).getByRole('button').allTextContents(),
+    ['证券记录', '标签词表', '行业词表'],
+  );
+  assert.equal(await page.locator('aside').getByRole('button', { name: '＋ 新增证券', exact: true }).count(), 1);
   assert.equal(await page.getByLabel('主主题', { exact: true }).count(), 0);
   assert.equal(await page.locator('.badge').filter({ hasText: '未分类' }).count(), 0);
   await page.getByLabel('标签', { exact: true }).selectOption('ai');
@@ -184,10 +189,11 @@ test('only tags and industry remain in the UI and multi-select tags save to the 
   assert.deepEqual(Object.keys(saved.classification).sort(), ['tag_ids']);
   assert.deepEqual(saved.industry, initial.instruments[0].industry);
   assert.deepEqual(saved.sources, source.instruments[0].sources);
-  await page.getByRole('button', { name: '标签 / 行业词表', exact: true }).click();
+  await page.getByRole('button', { name: '标签词表', exact: true }).click();
   assert.equal(await page.getByRole('button', { name: '主主题', exact: true }).count(), 0);
   assert.equal(await page.getByRole('heading', { name: '主题、标签与标准行业词表', exact: true }).count(), 0);
-  await page.getByRole('button', { name: '行业体系', exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: '＋ 新增证券', exact: true }).count(), 0);
+  await page.getByRole('button', { name: '行业词表', exact: true }).click();
   await page.locator('aside .record-button').first().click();
   assert.equal(await page.getByLabel('将当前词条并入', { exact: true }).count(), 0);
 });
@@ -494,8 +500,7 @@ test('industry vocabulary is browsable in three levels and group edits flag revi
   await page.getByRole('checkbox', { name: /我已人工核验/ }).check();
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
   assert.match(await page.locator('#messages').textContent(), /已通过校验/);
-  await page.getByRole('button', { name: '标签 / 行业词表', exact: true }).click();
-  await page.getByRole('button', { name: '行业体系', exact: true }).click();
+  await page.getByRole('button', { name: '行业词表', exact: true }).click();
   await vocabularyRow(page, 'financedatabase').locator('.record-button').click();
   assert.match(await page.locator('.industry-tree > summary').textContent(), /11 板块 \/ 24 行业组 \/ 69 行业/);
   await page.locator('.industry-tree > details > summary').first().click();
@@ -535,7 +540,7 @@ test('industry vocabulary is browsable in three levels and group edits flag revi
 
 test('tag rename, referenced deletion and atomic merge stay safe in one PR draft', async (t) => {
   const page = await pageForTest(t);
-  await page.getByRole('button', { name: '标签 / 行业词表', exact: true }).click();
+  await page.getByRole('button', { name: '标签词表', exact: true }).click();
   assert.deepEqual(
     await vocabularyRow(page, 'semiconductor-ai').locator('.record-button').allTextContents(),
     ['半导体/AI'],
