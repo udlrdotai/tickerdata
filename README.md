@@ -14,9 +14,9 @@
 
 不再设置单选主主题。此前 12 个主题已与 3 个标签合为 15 个标签，原 ID、显示名、别名和证券关联保留；标签可多选，也可不填。此次仅作结构迁移，不撤销已有人工审核。后续可继续维护标签，不以初始数量限制数据。
 
-**全部尚未审核时，正式 `instruments.json` 和索引为空；完成审核并发布后，只包含已审核记录。** 网页可以查看和维护所有源记录。样例、单元测试中的虚构证券，都不能作为投资事实。
+**全部尚未审核时，正式 `instruments.json` 和索引为空；完成审核并发布后，只包含已审核记录。** 公开标的目录只读取正式发布数据；维护台可以查看和维护所有源记录。样例、单元测试中的虚构证券，都不能作为投资事实。
 
-本项目使用公开仓库 [udlrdotai/tickerdata](https://github.com/udlrdotai/tickerdata)，已显式选择公开 Pages 部署，目标维护入口为 <https://udlrdotai.github.io/tickerdata/>。是否部署成功及对应 commit 以仓库 Actions 和 Pages 状态为准。AI 在线生成、yfinance 抓取不属于此版实现。
+本项目使用公开仓库 [udlrdotai/tickerdata](https://github.com/udlrdotai/tickerdata)，已显式选择公开 Pages 部署。公开标的目录为 <https://udlrdotai.github.io/tickerdata/>，维护入口为 <https://udlrdotai.github.io/tickerdata/maintenance/>。是否部署成功及对应 commit 以仓库 Actions 和 Pages 状态为准。AI 在线生成、yfinance 抓取不属于此版实现。
 
 ## 本地启动
 
@@ -31,7 +31,7 @@ npm run build
 npm run serve
 ```
 
-打开 <http://localhost:8080>。`serve` 只服务 `dist/`，修改源文件后需要重新 `build` 并刷新；不要直接双击 HTML。
+打开 <http://localhost:8080> 查看公开标的目录，或打开 <http://localhost:8080/maintenance/> 使用维护台。`serve` 只服务 `dist/`，修改源文件后需要重新 `build` 并刷新；不要直接双击 HTML。
 
 真实浏览器维护流程使用 Node 内置测试运行器和仅开发期的 Playwright：
 
@@ -54,7 +54,7 @@ data/
   vocabulary.json              # 行业体系和多选标签
 schemas/                       # JSON Schema draft-07
 src/                           # 同一套浏览器 / CLI 语义校验与发布逻辑
-web/                           # 无后台静态维护界面
+web/                           # 公开只读目录与无后台静态维护界面
 config/site.json                # 仓库链接、分支、Pages 显式开关
 suggestions/                    # 只保存建议及逐项审核决策，不进入发布器
 scripts/                       # 校验、构建、协议迁移
@@ -68,7 +68,7 @@ dist/                          # 生成产物，忽略入库，禁止反向手�
 
 ## 日常维护闭环
 
-1. 在网页按 ticker、名称、别名搜索，按类型 / 标签 / 审核状态筛选；打开或新增证券。
+1. 在 `/maintenance/` 按 ticker、名称、别名搜索，按类型 / 标签 / 审核状态筛选；打开或新增证券。
 2. 分开填写证券身份、行业、多选标签、ETF 属性和依据。标签只能引用词表 ID，可留空。未知值保留空，不凭公司国籍排除美国上市证券。
 3. 开始编辑前使用 GitHub App 登录。OAuth 会重新加载页面，因此未登录时不要创建草稿。
 4. 查看差异并保存为**浏览器内存草稿**。草稿不写 GitHub、不跨刷新持久保存，页面离开会警告。
@@ -110,7 +110,9 @@ npm run validate
 
 ## GitHub / Pages 部署与可见性
 
-**纯 GitHub Pages 不能安全保存服务器端密钥，也没有直接写仓库的后端。** 本系统不在仓库或前端代码中保存 PAT、OAuth secret 或 AI key。网页“直接提交 PR”依赖同源 Cloudflare Worker 完成 GitHub App OAuth 和 GitHub API 调用；浏览器只持有 HttpOnly、Secure、SameSite=Lax 的加密会话 Cookie，不接触 GitHub access token。
+Pages 根路径提供只读目录，按代码、名称、别名、行业或标签搜索，并按证券类型、交易所、行业和标签筛选；它只读取 `latest/` 下正式发布的已审核记录。完整维护台位于 `/maintenance/`。
+
+**纯 GitHub Pages 不能安全保存服务器端密钥，也没有直接写仓库的后端。** 本系统不在仓库或前端代码中保存 PAT、OAuth secret 或 AI key。维护台“直接提交 PR”依赖同源 Cloudflare Worker 完成 GitHub App OAuth 和 GitHub API 调用；浏览器只持有 HttpOnly、Secure、SameSite=Lax 的加密会话 Cookie，不接触 GitHub access token。
 
 ### 网页内直接创建 PR
 

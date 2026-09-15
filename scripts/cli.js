@@ -109,8 +109,13 @@ async function buildSite(dataset) {
   await writeFile(resolve(dist, 'THIRD_PARTY_NOTICES.txt'), notices.join('\n\n'));
   await cp(resolve(root, 'LICENSE'), resolve(dist, 'SOFTWARE_LICENSE.txt'));
   await cp(resolve(root, 'docs/licensing.md'), resolve(dist, 'DATA_AND_EXTERNAL_TERMS.md'));
-  for (const name of ['index.html', 'style.css']) await cp(resolve(root, 'web', name), resolve(dist, name));
-  await build({ entryPoints: [resolve(root, 'web/app.js')], outfile: resolve(dist, 'app.js'), bundle: true, format: 'esm', platform: 'browser', target: 'es2022', minify: true, legalComments: 'eof' });
+  await cp(resolve(root, 'web/catalog.html'), resolve(dist, 'index.html'));
+  await cp(resolve(root, 'web/catalog.css'), resolve(dist, 'catalog.css'));
+  await build({ entryPoints: [resolve(root, 'web/catalog.js')], outfile: resolve(dist, 'catalog.js'), bundle: true, format: 'esm', platform: 'browser', target: 'es2022', minify: true, legalComments: 'eof' });
+  const maintenance = resolve(dist, 'maintenance');
+  await mkdir(maintenance, { recursive: true });
+  for (const name of ['index.html', 'style.css']) await cp(resolve(root, 'web', name), resolve(maintenance, name));
+  await build({ entryPoints: [resolve(root, 'web/app.js')], outfile: resolve(maintenance, 'app.js'), bundle: true, format: 'esm', platform: 'browser', target: 'es2022', minify: true, legalComments: 'eof' });
   console.log(`Built ${release.version}: ${JSON.parse(release.files['instruments.json']).instruments.length} reviewed / ${dataset.instruments.length} source records. Pages is ${siteConfig.pages_enabled ? 'opted in' : 'disabled'}.`);
 }
 

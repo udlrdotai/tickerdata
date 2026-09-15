@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; object-src 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>TickerData · 标的目录</title>
+  <link rel="stylesheet" href="./catalog.css">
+  <script type="module" src="./catalog.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div>
+      <p class="eyebrow">TICKERDATA / REVIEWED DATA</p>
+      <h1>标的目录</h1>
+      <p class="intro">浏览经过人工审核的证券标的、行业与主题标签。</p>
+    </div>
+    <nav aria-label="站点导航">
+      <a href="./maintenance/">进入维护台</a>
+      <a href="https://github.com/udlrdotai/tickerdata">GitHub</a>
+    </nav>
+  </header>
+  <main id="app">
+    <p role="status">正在加载已发布标的数据…</p>
+  </main>
+  <noscript>标的目录需要 JavaScript。发布数据也可从 <a href="./latest/instruments.json">instruments.json</a> 下载。</noscript>
+</body>
+</html>

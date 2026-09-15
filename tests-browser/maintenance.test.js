@@ -32,7 +32,8 @@ before(async () => {
       response.end(fixtureJson);
       return;
     }
-    const path = resolve(root, `.${pathname === '/' ? '/index.html' : pathname}`);
+    const relativePath = pathname.endsWith('/') ? `${pathname}index.html` : pathname;
+    const path = resolve(root, `.${relativePath}`);
     if (!path.startsWith(root + sep)) { response.writeHead(403).end(); return; }
     try {
       const bytes = await readFile(path);
@@ -75,8 +76,36 @@ async function pageForTest(t, options = {}, source = null, allowExternalRequests
       body: Buffer.isBuffer(source) ? source : JSON.stringify(source),
     }));
   }
-  await page.goto(origin);
+  await page.goto(`${origin}/maintenance/`);
   await page.getByRole('heading', { name: '证券目录', exact: true }).waitFor();
+  return page;
+}
+
+async function catalogPageForTest(t) {
+  const source = createDatasetFixture();
+  for (const record of source.instruments) {
+    record.symbol.mic = 'XNAS';
+    record.review = { status: 'reviewed', reviewer: 'Synthetic reviewer', reviewed_at: '2026-01-02T03:04:05Z' };
+  }
+  source.instruments.find((record) => record.symbol.canonical === 'TSLA').review =
+    { status: 'pending', reviewer: null, reviewed_at: null };
+  const release = createRelease(source, { generatedAt: '2026-01-02T03:04:05Z' });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const page = await context.newPage();
+  page.setDefaultTimeout(10000);
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('request', (request) => {
+    if (!request.url().startsWith(origin)) errors.push(`Unexpected external request ${request.url()}`);
+  });
+  t.after(() => context.close());
+  for (const name of ['instruments.json', 'vocabulary.json', 'manifest.json']) {
+    await page.route(`${origin}/latest/${name}`, (route) => route.fulfill({
+      contentType: 'application/json',
+      body: release.files[name],
+    }));
+  }
+  await page.goto(origin);
+  await page.getByRole('heading', { name: '标的目录', exact: true }).waitFor();
   return page;
 }
 
@@ -106,6 +135,20 @@ test('search/filter works at desktop and narrow mobile widths without an externa
   assert.equal(await page.evaluate(() => localStorage.length), 0);
 });
 
+test('public catalog shows only reviewed release records and supports filters', async (t) => {
+  const page = await catalogPageForTest(t);
+  assert.match(await page.locator('.summary').textContent(), /共 16 条已审核标的/);
+  assert.equal(await page.getByText('TSLA', { exact: true }).count(), 0);
+  await page.getByLabel('搜索', { exact: true }).fill('BRK-B');
+  assert.equal(await page.getByText('BRK.B', { exact: true }).count(), 1);
+  await page.getByLabel('搜索', { exact: true }).fill('');
+  await page.getByLabel('证券类型', { exact: true }).selectOption('etf');
+  assert.match(await page.locator('.summary').textContent(), /7 条结果/);
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+  assert.equal(await page.evaluate(() => localStorage.length), 0);
+});
+
 test('only tags and industry remain in the UI and multi-select tags save to the PR draft', async (t) => {
   const source = createDatasetFixture();
   const page = await pageForTest(t, {}, source);
@@ -114,7 +157,7 @@ test('only tags and industry remain in the UI and multi-select tags save to the 
   await page.getByLabel('标签', { exact: true }).selectOption('ai');
   assert.equal(await page.locator('aside .record-button').count(), 2);
   await page.getByLabel('标签', { exact: true }).selectOption('');
-  await page.getByRole('button', { name: /^NVDA ·/ }).click();
+  await page.getByRole('button', { name: /^NVDA$/ }).click();
   assert.deepEqual(await page.locator('form [required]').evaluateAll((controls) =>
     controls.map((control) => control.labels[0].textContent.trim())), ['原始代码', '规范代码', '证券类型', '上市状态', '审核状态']);
   assert.equal(await page.locator('form label.required').count(), 5);
@@ -145,7 +188,7 @@ test('only tags and industry remain in the UI and multi-select tags save to the 
 
 test('reviewers can explicitly approve records without tags or classification evidence', async (t) => {
   const page = await pageForTest(t);
-  await page.getByRole('button', { name: /^TSLA ·/ }).click();
+  await page.getByRole('button', { name: /^TSLA$/ }).click();
   const original = initial.instruments.find((record) => record.symbol.canonical === 'TSLA');
   assert.deepEqual(original.classification, { tag_ids: [] });
   await page.getByLabel('MIC 交易场所代码', { exact: true }).fill('XNAS');
@@ -186,7 +229,7 @@ test('current built maintenance source loads without assuming sample counts or r
 
 test('record utility links and normalization share a compact responsive action row', async (t) => {
   const page = await pageForTest(t);
-  await page.getByRole('button', { name: /^BRK.B ·/ }).click();
+  await page.getByRole('button', { name: /^BRK.B$/ }).click();
   const actions = page.getByRole('group', { name: '证券操作', exact: true });
   const normalize = actions.getByRole('button', { name: '由原始代码填入规范代码', exact: true });
   assert.equal(await actions.getByRole('link').count(), 2);
@@ -243,7 +286,7 @@ test('normalization remains available for new records and unconfigured GitHub li
     body: JSON.stringify({ repository_url: null, branch: 'main', pages_enabled: false }),
   }));
   await page.reload();
-  await page.getByRole('button', { name: /^CRWV ·/ }).click();
+  await page.getByRole('button', { name: /^CRWV$/ }).click();
   actions = page.getByRole('group', { name: '证券操作', exact: true });
   assert.equal(await actions.getByRole('link').count(), 0);
   await actions.getByRole('button', { name: '由原始代码填入规范代码', exact: true }).click();
@@ -266,7 +309,7 @@ test('direct PR submission is the only persistence path', async (t) => {
     }),
   }));
   await page.reload();
-  await page.getByRole('button', { name: /^NVDA ·/ }).click();
+  await page.getByRole('button', { name: /^NVDA$/ }).click();
   await page.getByLabel('英文名称', { exact: true }).fill('Direct PR flow fixture');
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
   await page.getByRole('button', { name: '关闭编辑面板', exact: true }).last().click();
@@ -294,7 +337,7 @@ test('records already reviewed at startup downgrade on edit unless explicitly re
       nvda.review = { status: 'reviewed', reviewer: 'Synthetic prior reviewer', reviewed_at: '2026-01-02T03:04:05Z' };
       assert.deepEqual(validateDataset(source), []);
       const page = await pageForTest(subtest, {}, source);
-      await page.getByRole('button', { name: /^NVDA ·/ }).click();
+      await page.getByRole('button', { name: /^NVDA$/ }).click();
       assert.equal(await page.locator('section[aria-label="编辑详情"]').getByLabel('审核状态', { exact: true }).inputValue(), 'reviewed');
       assert.equal(await page.getByRole('checkbox', { name: /我已人工核验/ }).isChecked(), false);
       await page.getByLabel('英文名称', { exact: true }).fill('Synthetic edited startup record');
@@ -321,7 +364,7 @@ test('records already reviewed at startup downgrade on edit unless explicitly re
 
 test('record edit, explicit human review, downgrade, safe text and validation are real browser flows', async (t) => {
   const page = await pageForTest(t);
-  await page.getByRole('button', { name: /^NVDA ·/ }).click();
+  await page.getByRole('button', { name: /^NVDA$/ }).click();
   await page.getByLabel('英文名称', { exact: true }).fill('Synthetic browser fixture');
   await page.getByLabel('MIC 交易场所代码', { exact: true }).fill('XNAS');
   await page.getByLabel('维护备注', { exact: true }).fill('<img src=x onerror="window.injected=true">');
@@ -396,7 +439,7 @@ test('three-level selection preserves initial values, cascades and backfills', a
   const system = initial.vocabulary.industry_systems.find((item) => item.id === 'financedatabase');
   const software = system.industries.find((item) => item.aliases.includes('Software'));
   const otherSector = system.sectors.find((item) => item.id !== record.industry.sector_id);
-  await page.getByRole('button', { name: /^NVDA ·/ }).click();
+  await page.getByRole('button', { name: /^NVDA$/ }).click();
   const systemControl = page.getByLabel('行业体系', { exact: true });
   const sectorControl = page.getByLabel('板块 / Sector', { exact: true });
   const groupControl = page.getByLabel('行业组 / Industry Group', { exact: true });
@@ -484,7 +527,7 @@ test('empty records allow no classification, Yahoo needs no group and ETF clears
 
 test('industry vocabulary is browsable in three levels and group edits flag reviewed references', async (t) => {
   const page = await pageForTest(t);
-  await page.getByRole('button', { name: /^NVDA ·/ }).click();
+  await page.getByRole('button', { name: /^NVDA$/ }).click();
   await page.getByLabel('英文名称', { exact: true }).fill('Synthetic hierarchy fixture');
   await page.getByLabel('MIC 交易场所代码', { exact: true }).fill('XNAS');
   await page.getByLabel('审核人', { exact: true }).fill('Synthetic hierarchy reviewer');
@@ -556,11 +599,11 @@ test('tag rename, referenced deletion and atomic merge stay safe in one PR draft
 
 test('unsaved navigation cancellation retains edits and no import control exists', async (t) => {
   const page = await pageForTest(t);
-  await page.getByRole('button', { name: /^NVDA ·/ }).click();
+  await page.getByRole('button', { name: /^NVDA$/ }).click();
   await page.getByLabel('英文名称', { exact: true }).fill('Unsaved fixture');
   page.removeAllListeners('dialog');
   page.on('dialog', (dialog) => dialog.dismiss());
-  await page.getByRole('button', { name: /^CRWV ·/ }).click();
+  await page.getByRole('button', { name: /^CRWV$/ }).click();
   assert.equal(await page.getByLabel('英文名称', { exact: true }).inputValue(), 'Unsaved fixture');
   assert.equal(await page.locator('input[type=file]').count(), 0);
   assert.equal(await page.getByRole('button', { name: /导入/ }).count(), 0);
