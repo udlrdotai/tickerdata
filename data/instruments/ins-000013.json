@@ -6,18 +6,18 @@
     ]
   },
   "etf": {
-    "objective": "Seek daily investment results, before fees and expenses, of 300% of the daily performance of the ICE Semiconductor Index.",
     "asset_class": "equity",
+    "description": "通过股票和衍生品寻求半导体指数单日回报的三倍多头结果；每日重置，多日累计回报不保证等于同期指数回报的三倍。",
+    "direction": "long",
     "exposure": [
       "ICE Semiconductor Index",
       "US-listed semiconductor companies",
       "equity and derivative instruments"
     ],
-    "leverage_factor": 3,
-    "direction": "long",
-    "reset_period": "daily",
     "fund_category": "daily leveraged semiconductor equity",
-    "description": "通过股票和衍生品寻求半导体指数单日回报的三倍多头结果；每日重置，多日累计回报不保证等于同期指数回报的三倍。",
+    "leverage_factor": 3,
+    "objective": "Seek daily investment results, before fees and expenses, of 300% of the daily performance of the ICE Semiconductor Index.",
+    "reset_period": "daily",
     "source_ids": [
       "official-product"
     ]
@@ -44,7 +44,7 @@
   "review": {
     "reviewed_at": "2026-09-14T20:07:45.048Z",
     "reviewer": "gankthisway",
-    "status": "reviewed"
+    "status": "needs_review"
   },
   "schema_version": "4.0.0",
   "security_type": "etf",

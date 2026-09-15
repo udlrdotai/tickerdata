@@ -29,7 +29,7 @@
   "review": {
     "reviewed_at": "2026-09-14T20:07:45.048Z",
     "reviewer": "gankthisway",
-    "status": "reviewed"
+    "status": "needs_review"
   },
   "schema_version": "4.0.0",
   "security_type": "stock",

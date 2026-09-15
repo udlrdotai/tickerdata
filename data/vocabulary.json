@@ -1061,7 +1061,9 @@
       "name_zh": "人工智能"
     },
     {
-      "aliases": [],
+      "aliases": [
+        "多倍产品"
+      ],
       "description": "用于辅助筛选，具体倍数、方向与重置周期以 ETF 字段为准。",
       "id": "leveraged",
       "name_zh": "杠杆产品"
@@ -1103,7 +1105,7 @@
       ],
       "description": "晶圆代工主线。",
       "id": "semiconductor-foundry",
-      "name_zh": "半导体/代工"
+      "name_zh": "半导体代工"
     },
     {
       "aliases": [],
