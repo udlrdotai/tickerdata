@@ -468,7 +468,7 @@ function renderRecordList() {
     const row = node('tr');
     if (state.selected === record.id && !draftRecord) row.classList.add('selected');
     const symbol = node('td');
-    const choose = button(`${record.symbol.canonical} · ${record.symbol.mic ?? 'MIC 未填写'}`, () => navigate(() => { state.selected = record.id; }), 'record-button');
+    const choose = button(record.symbol.canonical, () => navigate(() => { state.selected = record.id; }), 'record-button');
     choose.setAttribute('aria-pressed', String(state.selected === record.id && !draftRecord));
     symbol.append(choose);
     if (changed.has(`data/instruments/${record.id}.json`)) symbol.append(node('span', '草稿', 'badge draft'));
@@ -972,7 +972,7 @@ window.addEventListener('keydown', (event) => {
 
 async function start() {
   const [responses, session] = await Promise.all([
-    Promise.all([fetch('./source-data.json'), fetch('./site-config.json')]),
+    Promise.all([fetch('../source-data.json'), fetch('../site-config.json')]),
     getGitHubSession().catch((error) => ({
       enabled: error?.code !== 'not_configured',
       authenticated: false,
