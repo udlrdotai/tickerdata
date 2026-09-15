@@ -501,6 +501,9 @@ test('industry vocabulary is browsable in three levels and group edits flag revi
   await page.getByRole('button', { name: '校验并保存内存草稿', exact: true }).click();
   assert.match(await page.locator('#messages').textContent(), /已通过校验/);
   await page.getByRole('button', { name: '行业词表', exact: true }).click();
+  const headingActions = page.locator('aside .catalog-heading-actions');
+  assert.equal(await headingActions.getByText('集中查询行业体系，点击词条后在右侧抽屉维护。', { exact: true }).count(), 1);
+  assert.equal(await headingActions.getByRole('button', { name: '＋ 新增词条', exact: true }).count(), 1);
   await vocabularyRow(page, 'financedatabase').locator('.record-button').click();
   assert.match(await page.locator('.industry-tree > summary').textContent(), /11 板块 \/ 24 行业组 \/ 69 行业/);
   await page.locator('.industry-tree > details > summary').first().click();
@@ -541,6 +544,9 @@ test('industry vocabulary is browsable in three levels and group edits flag revi
 test('tag rename, referenced deletion and atomic merge stay safe in one PR draft', async (t) => {
   const page = await pageForTest(t);
   await page.getByRole('button', { name: '标签词表', exact: true }).click();
+  const headingActions = page.locator('aside .catalog-heading-actions');
+  assert.equal(await headingActions.getByText('集中查询标签，点击词条后在右侧抽屉维护。', { exact: true }).count(), 1);
+  assert.equal(await headingActions.getByRole('button', { name: '＋ 新增词条', exact: true }).count(), 1);
   assert.deepEqual(
     await vocabularyRow(page, 'semiconductor-ai').locator('.record-button').allTextContents(),
     ['半导体/AI'],
