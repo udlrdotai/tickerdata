@@ -770,13 +770,15 @@ function renderVocabulary(sidebar) {
   const heading = node('div', null, 'catalog-heading');
   const title = node('div', null, 'catalog-title');
   title.append(node('p', '数据查询', 'eyebrow'), node('h2', isTags ? '标签词表' : '行业词表'));
-  heading.append(title, node('p', isTags
-    ? '集中查询标签，点击词条后在右侧抽屉维护。'
-    : '集中查询行业体系，点击词条后在右侧抽屉维护。', 'muted'));
+  const actions = node('div', null, 'catalog-heading-actions');
+  actions.append(
+    node('p', isTags
+      ? '集中查询标签，点击词条后在右侧抽屉维护。'
+      : '集中查询行业体系，点击词条后在右侧抽屉维护。', 'muted'),
+    button('＋ 新增词条', () => navigate(() => { state.vocabId = '__new'; }), 'primary'),
+  );
+  heading.append(title, actions);
   sidebar.append(heading);
-  const toolbar = node('div', null, 'vocabulary-toolbar');
-  toolbar.append(button('＋ 新增词条', () => navigate(() => { state.vocabId = '__new'; }), 'primary'));
-  sidebar.append(toolbar);
   const search = node('input');
   search.type = 'search';
   search.placeholder = '搜索名称、稳定 ID、别名或说明';

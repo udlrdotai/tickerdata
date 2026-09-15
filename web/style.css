@@ -31,7 +31,7 @@ button, input, textarea, select { font: inherit; }
 button[aria-pressed="true"] { background: #d9eee9; border-color: var(--brand); color: #084d46; font-weight: 700; }
 :focus-visible { outline: 3px solid #bc6100 !important; outline-offset: 2px; }
 a { color: #075db0; overflow-wrap: anywhere; }
-.toolbar, .actions, .links, .badges, .vocabulary-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: .55rem; }
+.toolbar, .actions, .links, .badges { display: flex; align-items: center; flex-wrap: wrap; gap: .55rem; }
 .toolbar { margin: .85rem 0; }
 .record-actions { gap: .4rem; margin-bottom: .75rem; }
 .record-actions > a, .record-actions > button {
@@ -61,7 +61,6 @@ a { color: #075db0; overflow-wrap: anywhere; }
 .catalog-heading-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: .75rem; }
 .catalog-heading-actions > p { margin: 0; text-align: right; }
 .filters { display: grid; grid-template-columns: minmax(20rem, 2fr) repeat(3, minmax(9rem, 1fr)); gap: .75rem; padding: 1rem 1.1rem; background: var(--surface-muted); border-bottom: 1px solid var(--border); }
-.vocabulary-toolbar { justify-content: flex-end; padding: 1rem 1.1rem .5rem; }
 .vocabulary-search { padding: .5rem 1.1rem 1rem; border-bottom: 1px solid var(--border); }
 .field { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
 .field > label, .field-label { font-size: .85rem; font-weight: 600; }
