@@ -38,6 +38,11 @@ jobs:
       - run: npm test
       - run: python3 -m unittest discover -s tests -p 'test_*.py'
       - run: npm run build
+      - run: python3 -m pip install --disable-pip-version-check build
+      - run: node scripts/build-packages.js
+      - run: npm run test:packages
+      - run: npm run pack:packages
+      - run: node scripts/verify-package-artifacts.js
       - run: npx playwright install --with-deps chromium
       - run: npm run test:web
       - name: Preserve this exact commit's reproducible output

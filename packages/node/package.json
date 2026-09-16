@@ -1,0 +1,38 @@
+{
+  "name": "tickerdata",
+  "version": "0.1.0",
+  "description": "Offline, versioned ticker metadata lookup",
+  "type": "module",
+  "main": "./reader.cjs",
+  "module": "./index.js",
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "require": "./reader.cjs"
+    }
+  },
+  "files": [
+    "data/",
+    "index.js",
+    "reader.cjs",
+    "README.md",
+    "LICENSE-MIT",
+    "LICENSE-ODC-BY",
+    "NOTICE.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT AND ODC-By-1.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/udlrdotai/tickerdata.git",
+    "directory": "packages/node"
+  },
+  "keywords": [
+    "ticker",
+    "symbol",
+    "metadata",
+    "offline"
+  ]
+}

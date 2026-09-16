@@ -1,0 +1,93 @@
+name: Publish npm and PyPI packages
+
+on:
+  push:
+    tags: ['package-v*.*.*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require a reviewed default-branch ancestor
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: git merge-base --is-ancestor HEAD "origin/$DEFAULT_BRANCH"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --no-audit --no-fund
+      - run: python -m pip install --disable-pip-version-check build
+      - name: Check tag and package versions
+        run: |
+          version="${GITHUB_REF_NAME#package-v}"
+          node_version="$(node -p "require('./packages/node/package.json').version")"
+          python_version="$(sed -n 's/^version = "\(.*\)"$/\1/p' packages/python/pyproject.toml)"
+          test "$version" = "$node_version"
+          test "$version" = "$python_version"
+      - run: npm run validate
+      - run: npm test
+      - run: python3 -m unittest discover -s tests -p 'test_*.py'
+      - run: npm run build:packages
+      - run: npm run test:packages
+      - run: npm run pack:packages
+      - name: Inspect package contents
+        run: node scripts/verify-package-artifacts.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: .cache/package-artifacts/*.tgz
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-packages
+          path: |
+            .cache/package-artifacts/*.whl
+            .cache/package-artifacts/*.tar.gz
+          if-no-files-found: error
+
+  npm:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+          path: packages
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+          registry-url: https://registry.npmjs.org
+      - run: npm install --global npm@11.5.1
+      - run: npm publish packages/*.tgz --access public
+
+  pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-packages
+          path: packages
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packages/
