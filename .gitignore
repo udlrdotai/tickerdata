@@ -8,5 +8,16 @@ __pycache__/
 .env.*
 !.env.example
 web/generated/
+packages/node/data/
+packages/node/LICENSE-MIT
+packages/node/LICENSE-ODC-BY
+packages/node/NOTICE.md
+packages/python/src/tickerdata/data/
+packages/python/build/
+packages/python/dist/
+packages/python/*.egg-info/
+packages/python/LICENSE-MIT
+packages/python/LICENSE-ODC-BY
+packages/python/NOTICE.md
 
 *.pem

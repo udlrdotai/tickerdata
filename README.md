@@ -16,6 +16,7 @@
 - 维护台支持编辑证券和词表、查看差异、生成内存草稿，并通过 GitHub 登录直接创建 PR。
 - 构建可复现的 JSON 快照、哈希清单、符号索引和静态站点。
 - 提供无第三方 Python 依赖的本地或远程快照查询示例。
+- 可构建内置同一审核快照的 npm/PyPI 离线查询包。
 - GitHub Actions 负责 PR 校验、Pages 发布和带版本的数据 Release。
 
 本项目不提供行情、交易、订单流分析、组合管理或投资建议。
@@ -30,6 +31,8 @@ npm run validate
 npm test
 python3 -m unittest discover -s tests -p 'test_*.py'
 npm run build
+npm run build:packages
+npm run test:packages
 npm run serve
 ```
 
@@ -151,6 +154,28 @@ git push origin data-YYYY-MM-DD-NN
 ```
 
 长期消费应固定 Release tag，并校验 `manifest.json` 中的数据版本和哈希。
+
+### npm/PyPI 读取包
+
+`packages/node/` 和 `packages/python/` 分别生成 npm 与 PyPI 的 `tickerdata`
+读取包。两者内置同一份仅含已审核记录的固定快照，只提供按 ticker 查询：
+
+```js
+import { lookup } from 'tickerdata';
+const instrument = lookup('BRK-B', { mic: 'XNYS', provider: 'yahoo' });
+```
+
+```python
+from tickerdata import lookup
+instrument = lookup("BRK-B", mic="XNYS", provider="yahoo")
+```
+
+执行 `npm run build:packages` 生成包内快照，执行 `npm run test:packages`
+验证跨语言契约。包版本独立采用 SemVer，由唯一的 `package-vX.Y.Z` 标签触发
+npm/PyPI 同步发布。包名和 Trusted Publisher 必须在首次发布前由维护者配置。
+
+读取器代码使用 MIT License；本项目有权许可的数据库编排使用 ODC-By-1.0。
+独立内容和外部材料可能受其他条款约束，详见[许可说明](docs/licensing.md)。
 
 ## 安全与质量边界
 
