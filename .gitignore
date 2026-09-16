@@ -16,6 +16,7 @@ packages/python/src/tickerdata/data/
 packages/python/build/
 packages/python/dist/
 packages/python/*.egg-info/
+packages/python/src/*.egg-info/
 packages/python/LICENSE-MIT
 packages/python/LICENSE-ODC-BY
 packages/python/NOTICE.md
