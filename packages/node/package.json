@@ -1,6 +1,6 @@
 {
   "name": "tickerdata",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Offline, versioned ticker metadata lookup",
   "type": "module",
   "main": "./reader.cjs",
