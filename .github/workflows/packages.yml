@@ -74,7 +74,7 @@ jobs:
           node-version: '22.14.0'
           registry-url: https://registry.npmjs.org
       - run: npm install --global npm@11.5.1
-      - run: npm publish packages/*.tgz --access public
+      - run: npm publish ./packages/*.tgz --access public
 
   pypi:
     needs: build
